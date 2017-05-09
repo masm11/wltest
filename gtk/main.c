@@ -1,4 +1,4 @@
-#define WL_EGL_PLATFORM
+#define WL_EGL_PLATFORM 1
 #include <stdio.h>
 #include <gtk/gtk.h>
 #include <EGL/egl.h>
@@ -38,55 +38,82 @@ static void check_egl_error(const char *file, int lineno)
 
 static void init_egl(void)
 {
-    dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+    struct wl_display *native_dpy
+	    = gdk_wayland_display_get_wl_display(
+		    gdk_window_get_display(
+			    gtk_widget_get_window(drawable)
+			));
+    
+    dpy = eglGetDisplay(native_dpy);
+    if (dpy == EGL_NO_DISPLAY) {
+	printf("eglGetDisplay() failed.\n");
+	exit(1);
+    }
     CHECK_EGL_ERROR();
     
     int major, minor;
     if (!eglInitialize(dpy, &major, &minor)) {
+	CHECK_EGL_ERROR();
 	printf("eglInitialize() failed.\n");
 	exit(1);
     }
-    CHECK_EGL_ERROR();
     printf("%d.%d\n", major, minor);
     
     int attribs[] = {
-	EGL_RED_SIZE,
-	8,
-	EGL_GREEN_SIZE,
-	8,
-	EGL_BLUE_SIZE,
-	8,
-	EGL_ALPHA_SIZE,
-	8,
-	EGL_DEPTH_SIZE,
-	8,
-	EGL_SURFACE_TYPE,
-	EGL_WINDOW_BIT,
-	EGL_CONFORMANT,
-	EGL_OPENGL_ES2_BIT,
+	EGL_RED_SIZE,		8,
+	EGL_GREEN_SIZE,		8,
+	EGL_BLUE_SIZE,		8,
+	EGL_ALPHA_SIZE,		8,
+	EGL_DEPTH_SIZE,		16,
+	EGL_SURFACE_TYPE,	EGL_WINDOW_BIT,
+	EGL_RENDERABLE_TYPE,	EGL_OPENGL_ES2_BIT,
 	EGL_NONE,
     };
     EGLConfig config;
-    int num_configs;
+    int num_configs = -1;
     if (!eglChooseConfig(dpy, attribs, &config, 1, &num_configs)) {
+	CHECK_EGL_ERROR();
 	printf("eglChooseConfig() failed.\n");
+	exit(1);
+    }
+    printf("num_configs=%d.\n", num_configs);
+    int v = -1;
+    if (!eglGetConfigAttrib(dpy, config, EGL_BUFFER_SIZE, &v)) {
+	CHECK_EGL_ERROR();
+	printf("eglGetConfigAttrib(buffer_size) failed.\n");
+	exit(1);
+    }
+    printf("buffer_size=%d.\n", v);
+    v = -1;
+    if (!eglGetConfigAttrib(dpy, config, EGL_DEPTH_SIZE, &v)) {
+	CHECK_EGL_ERROR();
+	printf("eglGetConfigAttrib(depth_size) failed.\n");
+	exit(1);
+    }
+    printf("depth_size=%d.\n", v);
+    
+    int context_attrib[] = {
+	EGL_CONTEXT_CLIENT_VERSION, 2,
+	EGL_NONE,
+    };
+    ctxt = eglCreateContext(dpy, config, EGL_NO_CONTEXT, context_attrib);
+    if (ctxt == EGL_NO_CONTEXT) {
+	CHECK_EGL_ERROR();
+	printf("eglCreateContext() failed.\n");
 	exit(1);
     }
     CHECK_EGL_ERROR();
     
     struct wl_surface *native_window =
 	    gdk_wayland_window_get_wl_surface(gtk_widget_get_window(drawable));
-    sfc = eglCreateWindowSurface(dpy, config,
-	    wl_egl_window_create(native_window, 400, 400),
-	    NULL);
-    CHECK_EGL_ERROR();  // EGL_BAD_ALLOC??
+    printf("native_window=%p\n", native_window);
+    struct wl_egl_window *win = wl_egl_window_create(native_window, 400, 400);
+    printf("win=%p\n", win);
+    sfc = eglCreateWindowSurface(dpy, config, win, NULL);
+    if (sfc == EGL_NO_SURFACE)
+	CHECK_EGL_ERROR();
     
-    ctxt = eglCreateContext(dpy, config, NULL, NULL);
-    if (ctxt == EGL_NO_CONTEXT) {
-	printf("eglCreateContext() failed.\n");
-	exit(1);
-    }
-    CHECK_EGL_ERROR();
+    eglMakeCurrent(dpy, sfc, sfc, ctxt);
     
     
     const GLchar *vertex_shader_source = 
@@ -193,9 +220,6 @@ static void init_egl(void)
     assert(attr_pos >= 0);
     
     glUseProgram(shader_program);
-    
-    
-    eglMakeCurrent(dpy, sfc, sfc, ctxt);
 }
 
 static void draw(void)
@@ -203,19 +227,26 @@ static void draw(void)
     if (dpy == 0)
 	init_egl();
     
+/*
     cairo_device_t *device = cairo_egl_device_create(dpy, ctxt);
     cairo_surface_t *surface = cairo_gl_surface_create_for_egl(device, sfc, 500, 500);
     cairo_t *cr = cairo_create(surface);
+*/
     
     glClearColor(0, 0, 0, 1);
+    CHECK_GL_ERROR();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    CHECK_GL_ERROR();
     
     eglSwapBuffers(dpy, sfc);
+    CHECK_GL_ERROR();
     printf("%ld: draw\n", time(NULL));
     
+/*
     cairo_destroy(cr);
     cairo_surface_destroy(surface);
     cairo_device_destroy(device);
+*/
 }
 
 static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer user_data)
