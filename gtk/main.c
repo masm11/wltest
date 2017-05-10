@@ -352,8 +352,19 @@ static gboolean draw_cb(GtkWidget *widget, cairo_t *cr, gpointer user_data)
 
 static gboolean timeout_cb(gpointer user_data)
 {
-    draw();
+    gtk_gl_area_queue_render(GTK_GL_AREA(drawable));
     return G_SOURCE_CONTINUE;
+}
+
+static gboolean render(GtkGLArea *area, GdkGLContext *context)
+{
+    static float v = 0.0f;
+    glClearColor(v, v, v, 1);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    if ((v += 0.01f) >= 1.0f)
+	v -= 1.0f;
+    
+    return TRUE;
 }
 
 int main(int argc, char **argv)
@@ -363,12 +374,27 @@ int main(int argc, char **argv)
     GtkWidget *toplevel = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_widget_show(toplevel);
     
+#if 0
     drawable = gtk_drawing_area_new();
     gtk_widget_show(drawable);
     gtk_widget_set_size_request(drawable, 500 ,500);
     gtk_container_add(GTK_CONTAINER(toplevel), drawable);
     
     g_signal_connect(drawable, "draw", G_CALLBACK(draw_cb), NULL);
+    g_timeout_add(100, timeout_cb, NULL);
+#endif
+    
+    drawable = gtk_gl_area_new();
+    gtk_gl_area_set_use_es(GTK_GL_AREA(drawable), TRUE);
+    gtk_gl_area_set_required_version(GTK_GL_AREA(drawable), 2, 0);
+    gtk_gl_area_set_has_alpha(GTK_GL_AREA(drawable), TRUE);
+    gtk_gl_area_set_has_depth_buffer(GTK_GL_AREA(drawable), TRUE);
+    gtk_gl_area_set_auto_render(GTK_GL_AREA(drawable), FALSE);
+    g_signal_connect(drawable, "render", G_CALLBACK(render), NULL);
+    gtk_widget_show(drawable);
+    gtk_widget_set_size_request(drawable, 500 ,500);
+    gtk_container_add(GTK_CONTAINER(toplevel), drawable);
+
     g_timeout_add(100, timeout_cb, NULL);
     
     gtk_main();
