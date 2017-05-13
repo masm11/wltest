@@ -20,12 +20,12 @@ static const char *srcVertexShader =
 	"uniform vec4 matPVW[4];\n"
 	"void main() {\n"
 	"  vec4 pos;\n"
-	"  pos = matPVW[0] * position0.xxxx;\n"
-	"  pos += matPVW[1]* position0.yyyy;\n"
-	"  pos += matPVW[2]* position0.zzzz;\n"
-	"  pos += matPVW[3]* position0.wwww;\n"
+	"  pos  = matPVW[0] * position0.xxxx;\n"
+	"  pos += matPVW[1] * position0.yyyy;\n"
+	"  pos += matPVW[2] * position0.zzzz;\n"
+	"  pos += matPVW[3] * position0.wwww;\n"
 	"  gl_Position = pos;\n"
-	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normalize(normal0.xyz)), 0.f, 1.f);\n"
+	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normalize(normal0.xyz)), 0.0f, 1.0f);\n"
 	"  lmb = lmb * 0.5 + 0.5;\n"
 	"  vsout_color0.rgb = vec3(lmb, lmb, lmb);\n"
 	"  vsout_color0.a = 1.0;\n"
@@ -120,7 +120,7 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
 	    
 	    struct VertexPN v;
 	    v.Position.x = x;
-	    v.Position.y = (float) y;
+	    v.Position.y = y;
 	    v.Position.z = z;
 	    
 	    float nx = r * cos(th);
@@ -262,10 +262,10 @@ static void drawCube(int width, int height)
     };
     struct mat4 s1 = {
 	{
-	    { 0.5,   0,   0,   0 },
-	    {   0, 0.5,   0,   0 },
-	    {   0,   0, 0.5,   0 },
-	    {   0,   0,   0, 0.5 },
+	    { 0.2,   0,   0,   0 },
+	    {   0, 0.2,   0,   0 },
+	    {   0,   0, 0.2,   0 },
+	    {   0,   0,   0, 0.2 },
 	},
     };
     struct mat4 t1 = {
