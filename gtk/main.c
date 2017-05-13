@@ -176,12 +176,9 @@ static void CreateResource(void)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
     drawObj.indexCount = TORUS_N * TORUS_N * 6;
     
-    char *offset = NULL;
     int stride = sizeof(struct VertexPN);
-    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, offset);
-    offset += sizeof(struct VertexPosition);
-    glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, offset);
-    offset += sizeof(struct VertexNormal);
+    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+    glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
     
     glEnableVertexAttribArray(locPos);
     glEnableVertexAttribArray(locNrm);
@@ -202,13 +199,29 @@ struct mat4 {
     float v[4][4];
 };
 
+static struct mat4 mat4_mul(struct mat4 s0, struct mat4 s1)
+{
+    struct mat4 d;
+    
+    for (int y = 0; y < 4; y++) {
+	for (int x = 0; x < 4; x++) {
+	    float sum = 0;
+	    for (int i = 0; i < 4; i++)
+		sum += s0.v[y][i] * s1.v[i][x];
+	    d.v[y][x] = sum;
+	}
+    }
+    
+    return d;
+}
+
 static void drawCube(int width, int height)
 {
     glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     static double angle = 0;
-    if ((angle += 0.01) > 3600)
+    if ((angle += 0.1) > 3600)
 	angle -= 3600;
     
 #if 0
@@ -223,16 +236,51 @@ static void drawCube(int width, int height)
 #endif
     glUseProgram(drawObj.shader);
     
-    // glm::mat4 pvw = proj * view * world;
-    struct mat4 pvw = {
+    struct mat4 r1 = {
+	{
+	    { cos(angle), -sin(angle), 0, 0 },
+	    { sin(angle),  cos(angle), 0, 0 },
+	    { 0,                    0, 1, 0 },
+	    { 0,                    0, 0, 1 },
+	},
+    };
+    struct mat4 r2 = {
+	{
+	    { 1,            0,             0, 0 },
+	    { 0, cos(angle/2), -sin(angle/2), 0 },
+	    { 0, sin(angle/2),  cos(angle/2), 0 },
+	    { 0,            0,             0, 1 },
+	},
+    };
+    struct mat4 r3 = {
+	{
+	    {  cos(angle/3), 0, sin(angle/3), 0 },
+	    {             0, 1,            0, 0 },
+	    { -sin(angle/3), 0, cos(angle/3), 0 },
+	    {             0, 0,            0, 1 },
+	},
+    };
+    struct mat4 s1 = {
+	{
+	    { 0.5,   0,   0,   0 },
+	    {   0, 0.5,   0,   0 },
+	    {   0,   0, 0.5,   0 },
+	    {   0,   0,   0, 0.5 },
+	},
+    };
+    struct mat4 t1 = {
 	{
 	    { 1, 0, 0, 0 },
-	    { 0, 1, 0, 0 },
-	    { 0, 0, 1, -10 },
+	    { 0, 1, 0, 20 },
+	    { 0, 0, 1, 0 },
 	    { 0, 0, 0, 1 },
 	},
     };
-    glUniform4fv(locPVW, 4, (float *) &pvw);
+    struct mat4 m = mat4_mul(t1, mat4_mul(s1, mat4_mul(mat4_mul(r1, r2), r3)));
+    
+    // glm::mat4 pvw = proj * view * world;
+    
+    glUniform4fv(locPVW, 4, (float *) &m);
     
     glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
@@ -274,7 +322,7 @@ static int create_texture(void)
 	    data[(y * 16 + x) * 4 + 3] = rand();
 	}
     }
-
+    
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
     // glEnable(GL_SCISSOR_TEST);
