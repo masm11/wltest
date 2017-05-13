@@ -19,7 +19,7 @@ static const char *srcVertexShader =
 	"varying vec4 vsout_color0;\n"
 	"uniform vec4 matPVW[4];\n"
 	"void main() {\n"
-	"vec4 pos;\n"
+	"  vec4 pos;\n"
 	"  pos = matPVW[0] * position0.xxxx;\n"
 	"  pos += matPVW[1]* position0.yyyy;\n"
 	"  pos += matPVW[2]* position0.zzzz;\n"
@@ -61,26 +61,26 @@ static int createShaderProgram(const char *srcVS, const char *srcFS)
     int shaderFS = glCreateShader(GL_FRAGMENT_SHADER);
     
     fprintf(stderr, "vertex shader.\n");
-    glShaderSource( shaderVS, 1, &srcVS, 0 );
+    glShaderSource(shaderVS, 1, &srcVS, 0);
     int errCode = glGetError();
-    if( errCode != GL_NO_ERROR ) {
-	fprintf( stderr, "GLErr.  %X\n", errCode );
+    if (errCode != GL_NO_ERROR) {
+	fprintf(stderr, "GLErr.  %X\n", errCode);
 	exit(1);
     }
     
-    glCompileShader( shaderVS );
-    checkCompiled( shaderVS );
+    glCompileShader(shaderVS);
+    checkCompiled(shaderVS);
     
     fprintf(stderr, "fragment shader.\n");
-    glShaderSource( shaderFS, 1, &srcFS, NULL );
-    glCompileShader( shaderFS );
-    checkCompiled( shaderFS );
+    glShaderSource(shaderFS, 1, &srcFS, NULL);
+    glCompileShader(shaderFS);
+    checkCompiled(shaderFS);
     
     int program = glCreateProgram();
-    glAttachShader( program, shaderVS );
-    glAttachShader( program, shaderFS );
+    glAttachShader(program, shaderVS);
+    glAttachShader(program, shaderFS);
     
-    glLinkProgram( program );
+    glLinkProgram(program);
     
     return program;
 }
@@ -107,27 +107,25 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
     float minorRadius = 1.0f;
     int n = TORUS_N;
     
-    int vertexCount = (n+1) * (n+1);
-    
     int idx = 0;
-    for( int i = 0; i <= n; ++i ) {
+    for (int i = 0; i <= n; i++) {
 	double ph = PI * 2.0 * i / n;
-	double r = cos( ph ) * minorRadius;
-	double y = sin( ph ) * minorRadius;
+	double r = cos(ph) * minorRadius;
+	double y = sin(ph) * minorRadius;
 	
-	for( int j = 0; j <= n; ++j ) {
+	for (int j = 0; j <= n; j++) {
 	    double th = 2.0 * PI * j / n;
 	    float x = (r + radius) * cos(th);
 	    float z = (r + radius) * sin(th);
 	    
 	    struct VertexPN v;
 	    v.Position.x = x;
-	    v.Position.y = (float)y;
+	    v.Position.y = (float) y;
 	    v.Position.z = z;
 	    
-	    float nx = (float)( r * cos(th) );
-	    float ny = (float) y;
-	    float nz = (float)( r * sin(th) );
+	    float nx = r * cos(th);
+	    float ny = y;
+	    float nz = r * sin(th);
 	    v.Normal.nx = nx;
 	    v.Normal.ny = ny;
 	    v.Normal.nz = nz;
@@ -137,9 +135,9 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
     }
     
     idx = 0;
-    for( int i = 0; i < n; ++i ) {
-	for( int j = 0; j < n; ++j ) {
-	    int index = (n+1) * j + i;
+    for(int i = 0; i < n; i++) {
+	for(int j = 0; j < n; j++) {
+	    int index = (n + 1) * j + i;
 	    indices[idx++] = index;
 	    indices[idx++] = index + n + 2;
 	    indices[idx++] = index + 1;
@@ -151,21 +149,21 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
     }
 }
 
-struct DrawBatch {
-  GLuint vb, ib;
-  GLuint shader;
-  int indexCount;
+static struct {
+    int vb, ib;
+    int shader;
+    int indexCount;
 } drawObj;
 
-GLint locPVW;
+static GLint locPVW;
 
 static void CreateResource(void)
 {
-    drawObj.shader = createShaderProgram( srcVertexShader, srcFragmentShader );
-    GLint locPos = glGetAttribLocation( drawObj.shader, "position0" );
-    GLint locNrm = glGetAttribLocation( drawObj.shader, "normal0" );
+    drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
+    GLint locPos = glGetAttribLocation(drawObj.shader, "position0");
+    GLint locNrm = glGetAttribLocation(drawObj.shader, "normal0");
     
-    locPVW = glGetUniformLocation( drawObj.shader, "matPVW" );
+    locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
     
     uint16_t indices_torus[TORUS_N * TORUS_N * 6];
     struct VertexPN vertices_torus[(TORUS_N + 1) * (TORUS_N + 1)];
@@ -178,15 +176,15 @@ static void CreateResource(void)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
     drawObj.indexCount = TORUS_N * TORUS_N * 6;
     
-    char* offset = NULL;
+    char *offset = NULL;
     int stride = sizeof(struct VertexPN);
-    glVertexAttribPointer( locPos, 3, GL_FLOAT, GL_FALSE, stride, offset );
+    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, offset);
     offset += sizeof(struct VertexPosition);
-    glVertexAttribPointer( locNrm, 3, GL_FLOAT, GL_FALSE, stride, offset );
+    glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, offset);
     offset += sizeof(struct VertexNormal);
     
-    glEnableVertexAttribArray( locPos );
-    glEnableVertexAttribArray( locNrm );
+    glEnableVertexAttribArray(locPos);
+    glEnableVertexAttribArray(locNrm);
 }
 
 static void DestroyResource(void)
@@ -209,11 +207,9 @@ static void drawCube(int width, int height)
     glEnable(GL_DEPTH_TEST);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    static double angle = 0.0f;
-    angle += .01f;
-    if( angle > 3600.0 ) {
-	angle -= 3600.0;
-    }
+    static double angle = 0;
+    if ((angle += 0.01) > 3600)
+	angle -= 3600;
     
 #if 0
     struct vec3 cameraPos = {
@@ -225,7 +221,7 @@ static void drawCube(int width, int height)
     world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 0.0f, 0.0f, 1.0f ) );
     world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 1.0f, 0.0f, 0.0f ));
 #endif
-    glUseProgram( drawObj.shader );
+    glUseProgram(drawObj.shader);
     
     // glm::mat4 pvw = proj * view * world;
     struct mat4 pvw = {
@@ -236,12 +232,12 @@ static void drawCube(int width, int height)
 	    { 0, 0, 0, 1 },
 	},
     };
-    glUniform4fv( locPVW, 4, (float *) &pvw );
+    glUniform4fv(locPVW, 4, (float *) &pvw);
     
-    glBindBuffer( GL_ARRAY_BUFFER, drawObj.vb );
-    glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, drawObj.ib );
+    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
     
-    glDrawElements( GL_TRIANGLES, drawObj.indexCount, GL_UNSIGNED_SHORT, NULL );   
+    glDrawElements(GL_TRIANGLES, drawObj.indexCount, GL_UNSIGNED_SHORT, NULL);
 }
 
 
