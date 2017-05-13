@@ -25,9 +25,9 @@ static const char *srcVertexShader =
 	"  pos += matPVW[2]* position0.zzzz;\n"
 	"  pos += matPVW[3]* position0.wwww;\n"
 	"  gl_Position = pos;\n"
-	"  float lmb = clamp( dot( vec3(0.0, 0.5, 0.5), normalize(normal0.xyz)), 0.f, 1.f );\n"
+	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normalize(normal0.xyz)), 0.f, 1.f);\n"
 	"  lmb = lmb * 0.5 + 0.5;\n"
-	"  vsout_color0.rgb = vec3(lmb,lmb,lmb);\n"
+	"  vsout_color0.rgb = vec3(lmb, lmb, lmb);\n"
 	"  vsout_color0.a = 1.0;\n"
 	"}";
 
@@ -302,10 +302,19 @@ static gboolean render(GtkGLArea *area, GdkGLContext *context)
     }
     
     static float v = 0.0f;
+    static float diff = 0.01f;
     glClearColor(v, v, v, 1);
-    // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    if ((v += 0.01f) >= 1.0f)
-	v -= 1.0f;
+    if (diff > 0) {
+	if ((v += diff) >= 0.3f) {
+	    v = 0.3f;
+	    diff = -diff;
+	}
+    } else {
+	if ((v += diff) < 0) {
+	    v = 0;
+	    diff = -diff;
+	}
+    }
     
     drawCube(400, 400);
     
