@@ -38,14 +38,15 @@ static void check_egl_error(const char *file, int lineno)
 static const char *srcVertexShader =
 	"attribute vec4 position0;\n"
 	"attribute vec3 normal0;\n"
+	"attribute vec3 color0;\n"
 	"varying vec4 vsout_color0;\n"
 	"uniform mat4 matPVW;\n"
 	"void main() {\n"
 	"  gl_Position = matPVW * position0;\n"
 	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normalize(normal0.xyz)), 0.0f, 1.0f);\n"
 	"  lmb = lmb * 0.5 + 0.5;\n"
-	"  vsout_color0.rgb = vec3(lmb, lmb, lmb);\n"
-	"  vsout_color0.a = 1.0;\n"
+	"  vsout_color0.rgb = color0;\n"
+	"  vsout_color0.a = lmb;\n"
 	"}";
 
 static const char *srcFragmentShader =
@@ -160,10 +161,14 @@ struct VertexPosition {
 struct VertexNormal {
     float nx, ny, nz;
 };
+struct Color {
+    float r, g, b;
+};
 
 struct VertexPN {
     struct VertexPosition Position;
     struct VertexNormal Normal;
+    struct Color Color;
 };
 
 #define TORUS_N 20
@@ -204,7 +209,7 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
 	    };
 	    struct vec4 v = mat4_mul_vec4(m, vtx);
 	    struct vec4 norm = {
-		{ c0, s0, 0, 1},
+		{ c0, s0, 0, 1 },
 	    };
 	    struct vec4 n = mat4_mul_vec4(rot_y, norm);
 	    
@@ -218,6 +223,11 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
 		    .nx = n.v[0],
 		    .ny = n.v[1],
 		    .nz = n.v[2],
+		},
+		.Color = {
+		    .r = (float) i / TORUS_N,
+		    .g = (float) j / TORUS_N,
+		    .b = 0,
 		},
 	    };
 	}
@@ -255,6 +265,7 @@ static void CreateResource(void)
     drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
     GLint locPos = glGetAttribLocation(drawObj.shader, "position0");
     GLint locNrm = glGetAttribLocation(drawObj.shader, "normal0");
+    GLint locCol = glGetAttribLocation(drawObj.shader, "color0");
     CHECK_GL_ERROR();
     
     locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
@@ -277,9 +288,12 @@ static void CreateResource(void)
     CHECK_GL_ERROR();
     glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
     CHECK_GL_ERROR();
+    glVertexAttribPointer(locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
+    CHECK_GL_ERROR();
     
     glEnableVertexAttribArray(locPos);
     glEnableVertexAttribArray(locNrm);
+    glEnableVertexAttribArray(locCol);
     CHECK_GL_ERROR();
 }
 
@@ -303,8 +317,8 @@ static void drawCube(int width, int height)
     CHECK_GL_ERROR();
     
     static double angle = 0;
-    if ((angle += 0.1) >= 6 * M_PI)
-	angle -= 6 * M_PI;
+    if ((angle += 0.1) >= 12 * M_PI)
+	angle -= 12 * M_PI;
     
 #if 0
     struct vec3 cameraPos = {
@@ -356,19 +370,36 @@ static void drawCube(int width, int height)
 	{
 	    { 1, 0, 0, 0 },
 	    { 0, 1, 0, 0 },
-	    { 0, 0, 1, -50 },
+	    { 0, 0, 1, -100 },
 	    { 0, 0, 0, 1 },
 	},
     };
+    const float near = 80;
+    const float far = 120;
+    const float right = 10;
+    const float top = 10;
     struct mat4 proj = {
 	{
-	    { 30*tan(M_PI/4), 0, 0, 0 },
-	    { 0, 30*tan(M_PI/4), 0, 0 },
-	    { 0, 0, (100+30)/(-100+30), (2*30*100)/(-100+30) },
+	    { near / right, 0, 0, 0 },
+	    { 0, near / top, 0, 0 },
+	    { 0, 0, -(far+near)/(far-near), -2*far*near/(far-near) },
 	    { 0, 0, -1, 0 },
 	},
     };
-    struct mat4 m = mat4_mul(proj, mat4_mul(t1, mat4_mul(s1, mat4_mul(mat4_mul(r1, r2), r3))));
+    struct mat4 m = {
+	{
+	    { 1, 0, 0, 0 },
+	    { 0, 1, 0, 0 },
+	    { 0, 0, 1, 0 },
+	    { 0, 0, 0, 1 },
+	},
+    };
+    // m = mat4_mul(r1, m);
+    // m = mat4_mul(r2, m);
+    m = mat4_mul(r3, m);
+    m = mat4_mul(s1, m);
+    m = mat4_mul(t1, m);
+    m = mat4_mul(proj, m);
     
     printf("----\n");
     for (int y = 0; y < 4; y++) {
