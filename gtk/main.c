@@ -418,7 +418,7 @@ static int create_texture(void)
 {
     static unsigned char data[16 * 16 * 4];
     GLuint tex;
-
+    
     for (int y = 0; y < 16; y++) {
 	for (int x = 0; x < 16; x++) {
 	    data[(y * 16 + x) * 4 + 0] = rand();
