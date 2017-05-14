@@ -23,6 +23,7 @@ static void check_gl_error(const char *file, int lineno)
     exit(1);
 }
 
+#if 0
 #define CHECK_EGL_ERROR() check_egl_error(__FILE__, __LINE__)
 static void check_egl_error(const char *file, int lineno)
 {
@@ -32,9 +33,8 @@ static void check_egl_error(const char *file, int lineno)
     printf("%s:%d: err=0x%08x.\n", file, lineno, err);
     exit(1);
 }
+#endif
 
-
-#if 1
 static const char *srcVertexShader =
 	"attribute vec4 position0;\n"
 	"attribute vec3 normal0;\n"
@@ -54,22 +54,6 @@ static const char *srcFragmentShader =
 	"void main() {\n"
 	"  gl_FragColor = vsout_color0;\n"
 	"}";
-#else
-static const char *srcVertexShader =
-	"attribute vec4 position0;\n"
-	"uniform mat4 matPVW;\n"
-	"void main() {\n"
-	"  gl_Position = matPVW * position0;\n"
-	"}";
-
-static const char *srcFragmentShader =
-	"void main() {\n"
-	"  gl_FragColor.r = 1.0;\n"
-	"  gl_FragColor.g = 1.0;\n"
-	"  gl_FragColor.b = 0.0;\n"
-	"  gl_FragColor.a = 1.0;\n"
-	"}";
-#endif
 
 static void checkCompiled(int shader)
 {
@@ -158,6 +142,7 @@ static struct vec4 mat4_mul_vec4(struct mat4 m, struct vec4 v)
     return r;
 }
 
+#if 0
 static struct mat4 mat4_tr(struct mat4 s)
 {
     struct mat4 d;
@@ -167,6 +152,7 @@ static struct mat4 mat4_tr(struct mat4 s)
     }
     return d;
 }
+#endif
 
 struct VertexPosition {
     float x, y, z;
@@ -257,7 +243,7 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
 }
 
 static struct {
-    int vb, ib;
+    GLuint vb, ib;
     int shader;
     int indexCount;
 } drawObj;
@@ -268,7 +254,7 @@ static void CreateResource(void)
 {
     drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
     GLint locPos = glGetAttribLocation(drawObj.shader, "position0");
-    // GLint locNrm = glGetAttribLocation(drawObj.shader, "normal0");
+    GLint locNrm = glGetAttribLocation(drawObj.shader, "normal0");
     CHECK_GL_ERROR();
     
     locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
@@ -289,20 +275,22 @@ static void CreateResource(void)
     int stride = sizeof(struct VertexPN);
     glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
     CHECK_GL_ERROR();
-    // glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
+    glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
     CHECK_GL_ERROR();
     
     glEnableVertexAttribArray(locPos);
-    // glEnableVertexAttribArray(locNrm);
+    glEnableVertexAttribArray(locNrm);
     CHECK_GL_ERROR();
 }
 
+#if 0
 static void DestroyResource(void)
 {
     glDeleteBuffers(1, &drawObj.vb);
     glDeleteBuffers(1, &drawObj.ib);
     glDeleteProgram(drawObj.shader);
 }
+#endif
 
 static void drawCube(int width, int height)
 {
@@ -385,7 +373,7 @@ static void drawCube(int width, int height)
     printf("----\n");
     for (int y = 0; y < 4; y++) {
 	for (int x = 0; x < 4; x++)
-	    printf("%6.3f ", m.v[y][x]);
+	    printf("%7.3f ", m.v[y][x]);
 	printf("\n");
     }
     
@@ -407,7 +395,7 @@ static void drawCube(int width, int height)
 static int create_texture(void)
 {
     static unsigned char data[16 * 16 * 4];
-    int tex;
+    GLuint tex;
 
     for (int y = 0; y < 16; y++) {
 	for (int x = 0; x < 16; x++) {
@@ -436,7 +424,7 @@ static gboolean timeout_cb(gpointer user_data)
     return G_SOURCE_CONTINUE;
 }
 
-static gboolean render(GtkGLArea *area, GdkGLContext *context)
+static gboolean render(GtkWidget *area, GdkGLContext *context)
 {
     CHECK_GL_ERROR();
     static int tex = 0;
@@ -462,7 +450,8 @@ static gboolean render(GtkGLArea *area, GdkGLContext *context)
 	}
     }
     
-    drawCube(500, 500);
+    drawCube(gdk_window_get_width(gtk_widget_get_window(area)),
+	    gdk_window_get_height(gtk_widget_get_window(area)));
     
     CHECK_GL_ERROR();
     
@@ -475,16 +464,6 @@ int main(int argc, char **argv)
     
     GtkWidget *toplevel = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_widget_show(toplevel);
-    
-#if 0
-    drawable = gtk_drawing_area_new();
-    gtk_widget_show(drawable);
-    gtk_widget_set_size_request(drawable, 500 ,500);
-    gtk_container_add(GTK_CONTAINER(toplevel), drawable);
-    
-    g_signal_connect(drawable, "draw", G_CALLBACK(draw_cb), NULL);
-    g_timeout_add(100, timeout_cb, NULL);
-#endif
     
     drawable = gtk_gl_area_new();
     gtk_gl_area_set_use_es(GTK_GL_AREA(drawable), TRUE);
