@@ -34,7 +34,7 @@ static void check_egl_error(const char *file, int lineno)
 }
 
 
-#if 0
+#if 1
 static const char *srcVertexShader =
 	"attribute vec4 position0;\n"
 	"attribute vec3 normal0;\n"
@@ -372,7 +372,15 @@ static void drawCube(int width, int height)
 	    { 0, 0, 0, 1 },
 	},
     };
-    struct mat4 m = mat4_mul(t1, mat4_mul(s1, mat4_mul(mat4_mul(r1, r2), r3)));
+    struct mat4 proj = {
+	{
+	    { 30*tan(M_PI/4), 0, 0, 0 },
+	    { 0, 30*tan(M_PI/4), 0, 0 },
+	    { 0, 0, (100+30)/(100-30), (2*30*100)/(100-30) },
+	    { 0, 0, 1, 0 },
+	},
+    };
+    struct mat4 m = mat4_mul(proj, mat4_mul(t1, mat4_mul(s1, mat4_mul(mat4_mul(r1, r2), r3))));
     
     printf("----\n");
     for (int y = 0; y < 4; y++) {
