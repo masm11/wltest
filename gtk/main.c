@@ -9,22 +9,39 @@
 #include <GLES2/gl2.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <math.h>
 
 static GtkWidget *drawable;
 
+#define CHECK_GL_ERROR() check_gl_error(__FILE__, __LINE__)
+static void check_gl_error(const char *file, int lineno)
+{
+    int err = glGetError();
+    if (err == GL_NO_ERROR)
+	return;
+    printf("%s:%d: err=0x%08x.\n", file, lineno, err);
+    exit(1);
+}
 
+#define CHECK_EGL_ERROR() check_egl_error(__FILE__, __LINE__)
+static void check_egl_error(const char *file, int lineno)
+{
+    int err = eglGetError();
+    if (err == EGL_SUCCESS)
+	return;
+    printf("%s:%d: err=0x%08x.\n", file, lineno, err);
+    exit(1);
+}
+
+
+#if 0
 static const char *srcVertexShader =
 	"attribute vec4 position0;\n"
 	"attribute vec3 normal0;\n"
 	"varying vec4 vsout_color0;\n"
-	"uniform vec4 matPVW[4];\n"
+	"uniform mat4 matPVW;\n"
 	"void main() {\n"
-	"  vec4 pos;\n"
-	"  pos  = matPVW[0] * position0.xxxx;\n"
-	"  pos += matPVW[1] * position0.yyyy;\n"
-	"  pos += matPVW[2] * position0.zzzz;\n"
-	"  pos += matPVW[3] * position0.wwww;\n"
-	"  gl_Position = pos;\n"
+	"  gl_Position = matPVW * position0;\n"
 	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normalize(normal0.xyz)), 0.0f, 1.0f);\n"
 	"  lmb = lmb * 0.5 + 0.5;\n"
 	"  vsout_color0.rgb = vec3(lmb, lmb, lmb);\n"
@@ -37,6 +54,22 @@ static const char *srcFragmentShader =
 	"void main() {\n"
 	"  gl_FragColor = vsout_color0;\n"
 	"}";
+#else
+static const char *srcVertexShader =
+	"attribute vec4 position0;\n"
+	"uniform mat4 matPVW;\n"
+	"void main() {\n"
+	"  gl_Position = matPVW * position0;\n"
+	"}";
+
+static const char *srcFragmentShader =
+	"void main() {\n"
+	"  gl_FragColor.r = 1.0;\n"
+	"  gl_FragColor.g = 1.0;\n"
+	"  gl_FragColor.b = 0.0;\n"
+	"  gl_FragColor.a = 1.0;\n"
+	"}";
+#endif
 
 static void checkCompiled(int shader)
 {
@@ -85,114 +118,12 @@ static int createShaderProgram(const char *srcVS, const char *srcFS)
     return program;
 }
 
-struct VertexPosition {
-    float x, y, z;
-};
-struct VertexNormal {
-    float nx, ny, nz;
-};
-
-struct VertexPN {
-    struct VertexPosition Position;
-    struct VertexNormal Normal;
-};
-
-static const double PI = 3.14159265;
-
-#define TORUS_N 20
-
-static void create_torus(uint16_t *indices, struct VertexPN *vertices)
-{
-    float radius = 3.0f;
-    float minorRadius = 1.0f;
-    int n = TORUS_N;
-    
-    int idx = 0;
-    for (int i = 0; i <= n; i++) {
-	double ph = PI * 2.0 * i / n;
-	double r = cos(ph) * minorRadius;
-	double y = sin(ph) * minorRadius;
-	
-	for (int j = 0; j <= n; j++) {
-	    double th = 2.0 * PI * j / n;
-	    float x = (r + radius) * cos(th);
-	    float z = (r + radius) * sin(th);
-	    
-	    struct VertexPN v;
-	    v.Position.x = x;
-	    v.Position.y = y;
-	    v.Position.z = z;
-	    
-	    float nx = r * cos(th);
-	    float ny = y;
-	    float nz = r * sin(th);
-	    v.Normal.nx = nx;
-	    v.Normal.ny = ny;
-	    v.Normal.nz = nz;
-	    
-	    vertices[idx++] = v;
-	}
-    }
-    
-    idx = 0;
-    for(int i = 0; i < n; i++) {
-	for(int j = 0; j < n; j++) {
-	    int index = (n + 1) * j + i;
-	    indices[idx++] = index;
-	    indices[idx++] = index + n + 2;
-	    indices[idx++] = index + 1;
-	    
-	    indices[idx++] = index;
-	    indices[idx++] = index + n + 1;
-	    indices[idx++] = index + n + 2;
-	}
-    }
-}
-
-static struct {
-    int vb, ib;
-    int shader;
-    int indexCount;
-} drawObj;
-
-static GLint locPVW;
-
-static void CreateResource(void)
-{
-    drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
-    GLint locPos = glGetAttribLocation(drawObj.shader, "position0");
-    GLint locNrm = glGetAttribLocation(drawObj.shader, "normal0");
-    
-    locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
-    
-    uint16_t indices_torus[TORUS_N * TORUS_N * 6];
-    struct VertexPN vertices_torus[(TORUS_N + 1) * (TORUS_N + 1)];
-    create_torus(indices_torus, vertices_torus);
-    glGenBuffers(1, &drawObj.vb);
-    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
-    glBufferData(GL_ARRAY_BUFFER, sizeof vertices_torus, vertices_torus, GL_STATIC_DRAW);
-    glGenBuffers(1, &drawObj.ib);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
-    drawObj.indexCount = TORUS_N * TORUS_N * 6;
-    
-    int stride = sizeof(struct VertexPN);
-    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
-    glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
-    
-    glEnableVertexAttribArray(locPos);
-    glEnableVertexAttribArray(locNrm);
-}
-
-static void DestroyResource(void)
-{
-    glDeleteBuffers(1, &drawObj.vb);
-    glDeleteBuffers(1, &drawObj.ib);
-    glDeleteProgram(drawObj.shader);
-}
-
 struct vec3 {
     float v[3];
+};
+
+struct vec4 {
+    float v[4];
 };
 
 struct mat4 {
@@ -215,14 +146,177 @@ static struct mat4 mat4_mul(struct mat4 s0, struct mat4 s1)
     return d;
 }
 
+static struct vec4 mat4_mul_vec4(struct mat4 m, struct vec4 v)
+{
+    struct vec4 r;
+    for (int y = 0; y < 4; y++) {
+	float sum = 0;
+	for (int x = 0; x < 4; x++)
+	    sum += m.v[y][x] * v.v[x];
+	r.v[y] = sum;
+    }
+    return r;
+}
+
+static struct mat4 mat4_tr(struct mat4 s)
+{
+    struct mat4 d;
+    for (int y = 0; y < 4; y++) {
+	for (int x = 0; x < 4; x++)
+	    d.v[y][x] = s.v[x][y];
+    }
+    return d;
+}
+
+struct VertexPosition {
+    float x, y, z;
+};
+struct VertexNormal {
+    float nx, ny, nz;
+};
+
+struct VertexPN {
+    struct VertexPosition Position;
+    struct VertexNormal Normal;
+};
+
+#define TORUS_N 20
+#define RADIUS (3.0f)
+#define MINOR_RADIUS (1.0f)
+
+static void create_torus(uint16_t *indices, struct VertexPN *vertices)
+{
+    int idx;
+    
+    idx = 0;
+    for (int i = 0; i < TORUS_N; i++) {
+	float c = cos(2 * M_PI * i / TORUS_N);
+	float s = sin(2 * M_PI * i / TORUS_N);
+	struct mat4 rot_y = {
+	    {
+		{ c, 0, s, 0 },
+		{ 0, 1, 0, 0 },
+		{-s, 0, c, 0 },
+		{ 0, 0, 0, 1 },
+	    },
+	};
+	struct mat4 tra_x = {
+	    {
+		{ 1, 0, 0, RADIUS },
+		{ 0, 1, 0, 0 },
+		{ 0, 0, 1, 0 },
+		{ 0, 0, 0, 1 },
+	    },
+	};
+	struct mat4 m = mat4_mul(rot_y, tra_x);
+	
+	for (int j = 0; j < TORUS_N; j++) {
+	    float c0 = cos(2 * M_PI * j / TORUS_N);
+	    float s0 = sin(2 * M_PI * j / TORUS_N);
+	    struct vec4 vtx = {
+		{ MINOR_RADIUS * c0, MINOR_RADIUS * s0, 0, 1 },
+	    };
+	    struct vec4 v = mat4_mul_vec4(m, vtx);
+	    struct vec4 norm = {
+		{ c0, s0, 0, 1},
+	    };
+	    struct vec4 n = mat4_mul_vec4(rot_y, norm);
+	    
+	    vertices[idx++] = (struct VertexPN) {
+		.Position = {
+		    .x = v.v[0],
+		    .y = v.v[1],
+		    .z = v.v[2],
+		},
+		.Normal = {
+		    .nx = n.v[0],
+		    .ny = n.v[1],
+		    .nz = n.v[2],
+		},
+	    };
+	}
+    }
+    
+    idx = 0;
+    for (int i = 0; i < TORUS_N; i++) {
+	for (int j = 0; j < TORUS_N; j++) {
+	    int i0 = i * TORUS_N + j;
+	    int i1 = i * TORUS_N + (j + 1) % TORUS_N;
+	    int i2 = (i + 1) % TORUS_N * TORUS_N + j;
+	    int i3 = (i + 1) % TORUS_N * TORUS_N + (j + 1) % TORUS_N;
+	    
+	    indices[idx++] = i0;
+	    indices[idx++] = i1;
+	    indices[idx++] = i2;
+	    
+	    indices[idx++] = i2;
+	    indices[idx++] = i1;
+	    indices[idx++] = i3;
+	}
+    }
+}
+
+static struct {
+    int vb, ib;
+    int shader;
+    int indexCount;
+} drawObj;
+
+static GLint locPVW;
+
+static void CreateResource(void)
+{
+    drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
+    GLint locPos = glGetAttribLocation(drawObj.shader, "position0");
+    // GLint locNrm = glGetAttribLocation(drawObj.shader, "normal0");
+    CHECK_GL_ERROR();
+    
+    locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
+    CHECK_GL_ERROR();
+    
+    uint16_t indices_torus[TORUS_N * TORUS_N * 6];
+    struct VertexPN vertices_torus[TORUS_N * TORUS_N];
+    create_torus(indices_torus, vertices_torus);
+    glGenBuffers(1, &drawObj.vb);
+    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
+    glBufferData(GL_ARRAY_BUFFER, sizeof vertices_torus, vertices_torus, GL_STATIC_DRAW);
+    glGenBuffers(1, &drawObj.ib);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
+    drawObj.indexCount = TORUS_N * TORUS_N * 6;
+    CHECK_GL_ERROR();
+    
+    int stride = sizeof(struct VertexPN);
+    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+    CHECK_GL_ERROR();
+    // glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
+    CHECK_GL_ERROR();
+    
+    glEnableVertexAttribArray(locPos);
+    // glEnableVertexAttribArray(locNrm);
+    CHECK_GL_ERROR();
+}
+
+static void DestroyResource(void)
+{
+    glDeleteBuffers(1, &drawObj.vb);
+    glDeleteBuffers(1, &drawObj.ib);
+    glDeleteProgram(drawObj.shader);
+}
+
 static void drawCube(int width, int height)
 {
+    CHECK_GL_ERROR();
     glEnable(GL_DEPTH_TEST);
+    CHECK_GL_ERROR();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    CHECK_GL_ERROR();
+    glViewport(0, 0, width, height);
+    CHECK_GL_ERROR();
     
     static double angle = 0;
-    if ((angle += 0.1) > 3600)
-	angle -= 3600;
+    if ((angle += 0.1) >= 6 * M_PI)
+	angle -= 6 * M_PI;
     
 #if 0
     struct vec3 cameraPos = {
@@ -234,7 +328,9 @@ static void drawCube(int width, int height)
     world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 0.0f, 0.0f, 1.0f ) );
     world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 1.0f, 0.0f, 0.0f ));
 #endif
+    CHECK_GL_ERROR();
     glUseProgram(drawObj.shader);
+    CHECK_GL_ERROR();
     
     struct mat4 r1 = {
 	{
@@ -262,52 +358,43 @@ static void drawCube(int width, int height)
     };
     struct mat4 s1 = {
 	{
-	    { 0.2,   0,   0,   0 },
-	    {   0, 0.2,   0,   0 },
-	    {   0,   0, 0.2,   0 },
-	    {   0,   0,   0, 0.2 },
+	    {   1,   0,   0,   0 },
+	    {   0,   1,   0,   0 },
+	    {   0,   0,   1,   0 },
+	    {   0,   0,   0,   1 },
 	},
     };
     struct mat4 t1 = {
 	{
 	    { 1, 0, 0, 0 },
-	    { 0, 1, 0, 20 },
-	    { 0, 0, 1, 0 },
+	    { 0, 1, 0, 0 },
+	    { 0, 0, 1, -50 },
 	    { 0, 0, 0, 1 },
 	},
     };
     struct mat4 m = mat4_mul(t1, mat4_mul(s1, mat4_mul(mat4_mul(r1, r2), r3)));
     
+    printf("----\n");
+    for (int y = 0; y < 4; y++) {
+	for (int x = 0; x < 4; x++)
+	    printf("%6.3f ", m.v[y][x]);
+	printf("\n");
+    }
+    
     // glm::mat4 pvw = proj * view * world;
     
-    glUniform4fv(locPVW, 4, (float *) &m);
+    CHECK_GL_ERROR();
+    glUniformMatrix4fv(locPVW, 1, GL_FALSE, (float *) &m);
+    CHECK_GL_ERROR();
     
     glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
+    CHECK_GL_ERROR();
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
+    CHECK_GL_ERROR();
     
     glDrawElements(GL_TRIANGLES, drawObj.indexCount, GL_UNSIGNED_SHORT, NULL);
 }
 
-
-#define CHECK_GL_ERROR() check_gl_error(__FILE__, __LINE__)
-static void check_gl_error(const char *file, int lineno)
-{
-    int err = glGetError();
-    if (err == GL_NO_ERROR)
-	return;
-    printf("%s:%d: err=0x%08x.\n", file, lineno, err);
-    exit(1);
-}
-
-#define CHECK_EGL_ERROR() check_egl_error(__FILE__, __LINE__)
-static void check_egl_error(const char *file, int lineno)
-{
-    int err = eglGetError();
-    if (err == EGL_SUCCESS)
-	return;
-    printf("%s:%d: err=0x%08x.\n", file, lineno, err);
-    exit(1);
-}
 
 static int create_texture(void)
 {
@@ -343,6 +430,7 @@ static gboolean timeout_cb(gpointer user_data)
 
 static gboolean render(GtkGLArea *area, GdkGLContext *context)
 {
+    CHECK_GL_ERROR();
     static int tex = 0;
     if (tex == 0) {
 	tex = create_texture();
@@ -351,7 +439,9 @@ static gboolean render(GtkGLArea *area, GdkGLContext *context)
     
     static float v = 0.0f;
     static float diff = 0.01f;
+    CHECK_GL_ERROR();
     glClearColor(v, v, v, 1);
+    CHECK_GL_ERROR();
     if (diff > 0) {
 	if ((v += diff) >= 0.3f) {
 	    v = 0.3f;
@@ -364,7 +454,7 @@ static gboolean render(GtkGLArea *area, GdkGLContext *context)
 	}
     }
     
-    drawCube(400, 400);
+    drawCube(500, 500);
     
     CHECK_GL_ERROR();
     
