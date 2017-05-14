@@ -376,8 +376,8 @@ static void drawCube(int width, int height)
 	{
 	    { 30*tan(M_PI/4), 0, 0, 0 },
 	    { 0, 30*tan(M_PI/4), 0, 0 },
-	    { 0, 0, (100+30)/(100-30), (2*30*100)/(100-30) },
-	    { 0, 0, 1, 0 },
+	    { 0, 0, (100+30)/(-100+30), (2*30*100)/(-100+30) },
+	    { 0, 0, -1, 0 },
 	},
     };
     struct mat4 m = mat4_mul(proj, mat4_mul(t1, mat4_mul(s1, mat4_mul(mat4_mul(r1, r2), r3))));
