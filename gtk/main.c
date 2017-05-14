@@ -143,7 +143,6 @@ static struct vec4 mat4_mul_vec4(struct mat4 m, struct vec4 v)
     return r;
 }
 
-#if 0
 static struct mat4 mat4_tr(struct mat4 s)
 {
     struct mat4 d;
@@ -153,7 +152,6 @@ static struct mat4 mat4_tr(struct mat4 s)
     }
     return d;
 }
-#endif
 
 struct VertexPosition {
     float x, y, z;
@@ -358,12 +356,13 @@ static void drawCube(int width, int height)
 	    {             0, 0,            0, 1 },
 	},
     };
+    const float scale = 1.0;
     struct mat4 s1 = {
 	{
-	    {   1,   0,   0,   0 },
-	    {   0,   1,   0,   0 },
-	    {   0,   0,   1,   0 },
-	    {   0,   0,   0,   1 },
+	    { scale,     0,     0, 0 },
+	    {     0, scale,     0, 0 },
+	    {     0,     0, scale, 0 },
+	    {     0,     0,     0, 1 },
 	},
     };
     struct mat4 t1 = {
@@ -394,8 +393,8 @@ static void drawCube(int width, int height)
 	    { 0, 0, 0, 1 },
 	},
     };
-    // m = mat4_mul(r1, m);
-    // m = mat4_mul(r2, m);
+    m = mat4_mul(r1, m);
+    m = mat4_mul(r2, m);
     m = mat4_mul(r3, m);
     m = mat4_mul(s1, m);
     m = mat4_mul(t1, m);
@@ -411,7 +410,7 @@ static void drawCube(int width, int height)
     // glm::mat4 pvw = proj * view * world;
     
     CHECK_GL_ERROR();
-    glUniformMatrix4fv(locPVW, 1, GL_FALSE, (float *) &m);
+    glUniformMatrix4fv(locPVW, 1, GL_TRUE, (float *) &m);
     CHECK_GL_ERROR();
     
     glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
