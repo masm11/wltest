@@ -43,10 +43,10 @@ static const char *srcVertexShader =
 	"uniform mat4 matPVW;\n"
 	"void main() {\n"
 	"  gl_Position = matPVW * position0;\n"
-	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normalize(normal0.xyz)), 0.0f, 1.0f);\n"
+	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normal0), 0.0, 1.0);\n"
 	"  lmb = lmb * 0.5 + 0.5;\n"
 	"  vsout_color0.rgb = color0;\n"
-	"  vsout_color0.a = lmb;\n"
+	"  vsout_color0.a = clamp(lmb, 0.99, 1.0);\n"
 	"}";
 
 static const char *srcFragmentShader =
@@ -169,7 +169,7 @@ struct VertexPN {
     struct Color Color;
 };
 
-#define TORUS_N 20
+#define TORUS_N 100
 #define RADIUS (3.0f)
 #define MINOR_RADIUS (1.0f)
 
@@ -258,6 +258,8 @@ static struct {
 
 static GLint locPVW;
 
+static struct VertexPN vertices_torus[TORUS_N * TORUS_N];
+
 static void CreateResource(void)
 {
     drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
@@ -270,7 +272,6 @@ static void CreateResource(void)
     CHECK_GL_ERROR();
     
     uint16_t indices_torus[TORUS_N * TORUS_N * 6];
-    struct VertexPN vertices_torus[TORUS_N * TORUS_N];
     create_torus(indices_torus, vertices_torus);
     glGenBuffers(1, &drawObj.vb);
     glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
@@ -315,7 +316,7 @@ static void drawCube(int width, int height)
     CHECK_GL_ERROR();
     
     static double angle = 0;
-    if ((angle += 0.1) >= 12 * M_PI)
+    if ((angle += 0.01) >= 12 * M_PI)
 	angle -= 12 * M_PI;
     
 #if 0
@@ -400,15 +401,6 @@ static void drawCube(int width, int height)
     m = mat4_mul(t1, m);
     m = mat4_mul(proj, m);
     
-    printf("----\n");
-    for (int y = 0; y < 4; y++) {
-	for (int x = 0; x < 4; x++)
-	    printf("%7.3f ", m.v[y][x]);
-	printf("\n");
-    }
-    
-    // glm::mat4 pvw = proj * view * world;
-    
     CHECK_GL_ERROR();
     glUniformMatrix4fv(locPVW, 1, GL_TRUE, (float *) &m);
     CHECK_GL_ERROR();
@@ -464,7 +456,7 @@ static gboolean render(GtkWidget *area, GdkGLContext *context)
     }
     
     static float v = 0.0f;
-    static float diff = 0.01f;
+    static float diff = 0.002f;
     CHECK_GL_ERROR();
     glClearColor(v, v, v, 1);
     CHECK_GL_ERROR();
@@ -506,7 +498,7 @@ int main(int argc, char **argv)
     gtk_widget_set_size_request(drawable, 500 ,500);
     gtk_container_add(GTK_CONTAINER(toplevel), drawable);
 
-    g_timeout_add(100, timeout_cb, NULL);
+    g_timeout_add(17, timeout_cb, NULL);
     
     gtk_main();
     
