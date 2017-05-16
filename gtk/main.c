@@ -56,6 +56,22 @@ static const char *srcFragmentShader =
 	"  gl_FragColor = vsout_color0;\n"
 	"}";
 
+static const char *srcVertexShader_2 =
+	"attribute vec4 position2;\n"
+	"attribute vec3 color2;\n"
+	"varying vec4 vsout_color2;\n"
+	"void main() {\n"
+	"  gl_Position = position2;\n"
+	"  vsout_color2.rgb = color2;\n"
+	"  vsout_color2.a = 1.0;\n"
+	"}";
+
+static const char *srcFragmentShader_2 =
+	"varying vec4 vsout_color2;\n"
+	"void main() {\n"
+	"  gl_FragColor = vsout_color2;\n"
+	"}";
+
 static void checkCompiled(int shader)
 {
     int status;
@@ -250,50 +266,120 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
     }
 }
 
+static void create_flat(uint16_t *indices, struct VertexPN *vertices)
+{
+    int idx;
+    
+    idx = 0;
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { { 100, 100, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {-100, 100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {-100,-100, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { { 100,-100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    
+    idx = 0;
+    indices[idx++] = 0; indices[idx++] = 1; indices[idx++] = 2;
+    indices[idx++] = 2; indices[idx++] = 1; indices[idx++] = 3;
+    indices[idx++] = 4; indices[idx++] = 5; indices[idx++] = 6;
+    indices[idx++] = 6; indices[idx++] = 5; indices[idx++] = 7;
+    indices[idx++] = 8; indices[idx++] = 9; indices[idx++] =10;
+    indices[idx++] =10; indices[idx++] = 9; indices[idx++] =11;
+    indices[idx++] =12; indices[idx++] =13; indices[idx++] =14;
+    indices[idx++] =14; indices[idx++] =13; indices[idx++] =15;
+}
+
 static struct {
     GLuint vb, ib;
     int shader;
     int indexCount;
+    GLint locPos, locNrm, locCol;
+    GLuint vb_2, ib_2;
+    int shader_2;
+    int indexCount_2;
+    GLint locPos_2, locCol_2;
 } drawObj;
 
 static GLint locPVW;
 
-static struct VertexPN vertices_torus[TORUS_N * TORUS_N];
-
 static void CreateResource(void)
 {
-    drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
-    GLint locPos = glGetAttribLocation(drawObj.shader, "position0");
-    GLint locNrm = glGetAttribLocation(drawObj.shader, "normal0");
-    GLint locCol = glGetAttribLocation(drawObj.shader, "color0");
-    CHECK_GL_ERROR();
+    {
+	drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
+	drawObj.locPos = glGetAttribLocation(drawObj.shader, "position0");
+	drawObj.locNrm = glGetAttribLocation(drawObj.shader, "normal0");
+	drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
+	CHECK_GL_ERROR();
+	locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
+	CHECK_GL_ERROR();
+	
+	glUseProgram(drawObj.shader);
+	
+	static uint16_t indices_torus[TORUS_N * TORUS_N * 6];
+	static struct VertexPN vertices_torus[TORUS_N * TORUS_N];
+	create_torus(indices_torus, vertices_torus);
+	glGenBuffers(1, &drawObj.vb);
+	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
+	glBufferData(GL_ARRAY_BUFFER, sizeof vertices_torus, vertices_torus, GL_STATIC_DRAW);
+	glGenBuffers(1, &drawObj.ib);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
+	drawObj.indexCount = TORUS_N * TORUS_N * 6;
+	CHECK_GL_ERROR();
+	
+	int stride = sizeof(struct VertexPN);
+	glVertexAttribPointer(drawObj.locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+	CHECK_GL_ERROR();
+	glVertexAttribPointer(drawObj.locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
+	CHECK_GL_ERROR();
+	glVertexAttribPointer(drawObj.locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
+	CHECK_GL_ERROR();
+	glEnableVertexAttribArray(drawObj.locPos);
+	glEnableVertexAttribArray(drawObj.locNrm);
+	glEnableVertexAttribArray(drawObj.locCol);
+	CHECK_GL_ERROR();
+    }
     
-    locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
-    CHECK_GL_ERROR();
-    
-    uint16_t indices_torus[TORUS_N * TORUS_N * 6];
-    create_torus(indices_torus, vertices_torus);
-    glGenBuffers(1, &drawObj.vb);
-    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
-    glBufferData(GL_ARRAY_BUFFER, sizeof vertices_torus, vertices_torus, GL_STATIC_DRAW);
-    glGenBuffers(1, &drawObj.ib);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
-    drawObj.indexCount = TORUS_N * TORUS_N * 6;
-    CHECK_GL_ERROR();
-    
-    int stride = sizeof(struct VertexPN);
-    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
-    CHECK_GL_ERROR();
-    glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
-    CHECK_GL_ERROR();
-    glVertexAttribPointer(locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
-    CHECK_GL_ERROR();
-    
-    glEnableVertexAttribArray(locPos);
-    glEnableVertexAttribArray(locNrm);
-    glEnableVertexAttribArray(locCol);
-    CHECK_GL_ERROR();
+    {
+	drawObj.shader_2 = createShaderProgram(srcVertexShader_2, srcFragmentShader_2);
+	drawObj.locPos_2 = glGetAttribLocation(drawObj.shader_2, "position2");
+	drawObj.locCol_2 = glGetAttribLocation(drawObj.shader_2, "color2");
+	CHECK_GL_ERROR();
+	
+	glUseProgram(drawObj.shader_2);
+	
+	static uint16_t indices_2[24];
+	static struct VertexPN vertices_2[16];
+	create_flat(indices_2, vertices_2);
+	glGenBuffers(1, &drawObj.vb_2);
+	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb_2);
+	glBufferData(GL_ARRAY_BUFFER, sizeof vertices_2, vertices_2, GL_STATIC_DRAW);
+	glGenBuffers(1, &drawObj.ib_2);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib_2);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_2, indices_2, GL_STATIC_DRAW);
+	drawObj.indexCount_2 = 24;
+	CHECK_GL_ERROR();
+	
+	int stride = sizeof(struct VertexPN);
+	CHECK_GL_ERROR();
+	glVertexAttribPointer(drawObj.locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+	CHECK_GL_ERROR();
+	glVertexAttribPointer(drawObj.locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
+	CHECK_GL_ERROR();
+	glEnableVertexAttribArray(drawObj.locPos_2);
+	glEnableVertexAttribArray(drawObj.locCol_2);
+	CHECK_GL_ERROR();
+    }
 }
 
 #if 0
@@ -315,6 +401,32 @@ static void drawCube(int width, int height)
     glViewport(0, 0, width, height);
     CHECK_GL_ERROR();
     
+    int stride = sizeof(struct VertexPN);
+    
+    glUseProgram(drawObj.shader_2);
+    CHECK_GL_ERROR();
+    
+    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb_2);
+    CHECK_GL_ERROR();
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib_2);
+    CHECK_GL_ERROR();
+    
+    drawObj.locPos_2 = glGetAttribLocation(drawObj.shader_2, "position2");
+    drawObj.locCol_2 = glGetAttribLocation(drawObj.shader_2, "color2");
+    
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(drawObj.locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(drawObj.locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
+    CHECK_GL_ERROR();
+    glEnableVertexAttribArray(drawObj.locPos_2);
+    glEnableVertexAttribArray(drawObj.locCol_2);
+    CHECK_GL_ERROR();
+    
+    glDrawElements(GL_TRIANGLES, drawObj.indexCount_2, GL_UNSIGNED_SHORT, NULL);
+    
+    glClear(GL_DEPTH_BUFFER_BIT);
+    
     static double angle = 0;
     if ((angle += 0.01) >= 12 * M_PI)
 	angle -= 12 * M_PI;
@@ -331,6 +443,27 @@ static void drawCube(int width, int height)
 #endif
     CHECK_GL_ERROR();
     glUseProgram(drawObj.shader);
+    CHECK_GL_ERROR();
+    
+    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
+    CHECK_GL_ERROR();
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
+    CHECK_GL_ERROR();
+    
+    drawObj.locPos = glGetAttribLocation(drawObj.shader, "position0");
+    drawObj.locNrm = glGetAttribLocation(drawObj.shader, "normal0");
+    drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
+    
+    stride = sizeof(struct VertexPN);
+    glVertexAttribPointer(drawObj.locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(drawObj.locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(drawObj.locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
+    CHECK_GL_ERROR();
+    glEnableVertexAttribArray(drawObj.locPos);
+    glEnableVertexAttribArray(drawObj.locNrm);
+    glEnableVertexAttribArray(drawObj.locCol);
     CHECK_GL_ERROR();
     
     struct mat4 r1 = {
@@ -380,8 +513,8 @@ static void drawCube(int width, int height)
     const float top = 10;
     struct mat4 proj = {
 	{
-	    { near / right, 0, 0, 0 },
-	    { 0, near / top, 0, 0 },
+	    { near/right, 0, 0, 0 },
+	    { 0, near/top, 0, 0 },
 	    { 0, 0, -(far+near)/(far-near), -2*far*near/(far-near) },
 	    { 0, 0, -1, 0 },
 	},
@@ -497,7 +630,7 @@ int main(int argc, char **argv)
     gtk_widget_show(drawable);
     gtk_widget_set_size_request(drawable, 500 ,500);
     gtk_container_add(GTK_CONTAINER(toplevel), drawable);
-
+    
     g_timeout_add(17, timeout_cb, NULL);
     
     gtk_main();
