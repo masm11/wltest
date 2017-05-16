@@ -336,18 +336,6 @@ static void CreateResource(void)
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
 	drawObj.indexCount = TORUS_N * TORUS_N * 6;
 	CHECK_GL_ERROR();
-	
-	int stride = sizeof(struct VertexPN);
-	glVertexAttribPointer(drawObj.locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
-	CHECK_GL_ERROR();
-	glVertexAttribPointer(drawObj.locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
-	CHECK_GL_ERROR();
-	glVertexAttribPointer(drawObj.locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
-	CHECK_GL_ERROR();
-	glEnableVertexAttribArray(drawObj.locPos);
-	glEnableVertexAttribArray(drawObj.locNrm);
-	glEnableVertexAttribArray(drawObj.locCol);
-	CHECK_GL_ERROR();
     }
     
     {
@@ -368,16 +356,6 @@ static void CreateResource(void)
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib_2);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_2, indices_2, GL_STATIC_DRAW);
 	drawObj.indexCount_2 = 24;
-	CHECK_GL_ERROR();
-	
-	int stride = sizeof(struct VertexPN);
-	CHECK_GL_ERROR();
-	glVertexAttribPointer(drawObj.locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
-	CHECK_GL_ERROR();
-	glVertexAttribPointer(drawObj.locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
-	CHECK_GL_ERROR();
-	glEnableVertexAttribArray(drawObj.locPos_2);
-	glEnableVertexAttribArray(drawObj.locCol_2);
 	CHECK_GL_ERROR();
     }
 }
