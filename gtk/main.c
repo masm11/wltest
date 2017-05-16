@@ -487,8 +487,13 @@ static void drawCube(int width, int height)
     };
     const float near = 80;
     const float far = 120;
-    const float right = 10;
-    const float top = 10;
+    float right = 10;
+    float top = 10;
+    if (width > height) {
+	right *= (float) width / height;
+    } else {
+	top *= (float) height / width;
+    }
     struct mat4 proj = {
 	{
 	    { near/right, 0, 0, 0 },
