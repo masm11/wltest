@@ -269,12 +269,12 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
 	    int i3 = (i + 1) % TORUS_N * TORUS_N + (j + 1) % TORUS_N;
 	    
 	    indices[idx++] = i0;
-	    indices[idx++] = i1;
 	    indices[idx++] = i2;
+	    indices[idx++] = i1;
 	    
 	    indices[idx++] = i2;
-	    indices[idx++] = i1;
 	    indices[idx++] = i3;
+	    indices[idx++] = i1;
 	}
     }
 }
@@ -398,6 +398,7 @@ static void drawCube(int width, int height)
     int stride = sizeof(struct VertexPN);
     
     glDisable(GL_TEXTURE_2D);
+    glDisable(GL_CULL_FACE);
     
     glUseProgram(drawObj.shader_2);
     CHECK_GL_ERROR();
@@ -438,6 +439,8 @@ static void drawCube(int width, int height)
     world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 1.0f, 0.0f, 0.0f ));
 #endif
     glEnable(GL_TEXTURE_2D);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
     CHECK_GL_ERROR();
     glUseProgram(drawObj.shader);
     CHECK_GL_ERROR();
