@@ -39,7 +39,9 @@ static const char *srcVertexShader =
 	"attribute vec4 position0;\n"
 	"attribute vec3 normal0;\n"
 	"attribute vec3 color0;\n"
+	"attribute vec2 tex0;\n"
 	"varying vec4 vsout_color0;\n"
+	"varying vec2 vsout_uv;\n"
 	"uniform mat4 matPVW;\n"
 	"void main() {\n"
 	"  gl_Position = matPVW * position0;\n"
@@ -47,13 +49,16 @@ static const char *srcVertexShader =
 	"  lmb = lmb * 0.5 + 0.5;\n"
 	"  vsout_color0.rgb = color0;\n"
 	"  vsout_color0.a = clamp(lmb, 0.99, 1.0);\n"
+	"  vsout_uv = tex0;\n"
 	"}";
 
 static const char *srcFragmentShader =
 	// "precision mediump float;\n"
+	"uniform sampler2D tex;\n"
 	"varying vec4 vsout_color0;\n"
+	"varying vec2 vsout_uv;\n"
 	"void main() {\n"
-	"  gl_FragColor = vsout_color0;\n"
+	"  gl_FragColor = vsout_color0 * texture2D(tex, vsout_uv);\n"
 	"}";
 
 static const char *srcVertexShader_2 =
@@ -175,6 +180,9 @@ struct VertexPosition {
 struct VertexNormal {
     float nx, ny, nz;
 };
+struct TexturePosition {
+    float u, v;
+};
 struct Color {
     float r, g, b;
 };
@@ -182,6 +190,7 @@ struct Color {
 struct VertexPN {
     struct VertexPosition Position;
     struct VertexNormal Normal;
+    struct TexturePosition Texture;
     struct Color Color;
 };
 
@@ -238,6 +247,10 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
 		    .ny = n.v[1],
 		    .nz = n.v[2],
 		},
+		.Texture = {
+		    .u = (float) i / TORUS_N,
+		    .v = (float) j / TORUS_N,
+		},
 		.Color = {
 		    .r = (float) i / TORUS_N,
 		    .g = (float) j / TORUS_N,
@@ -271,22 +284,22 @@ static void create_flat(uint16_t *indices, struct VertexPN *vertices)
     int idx;
     
     idx = 0;
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { { 100, 100, 0 }, { 0, 0, -1 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {-100, 100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {-100,-100, 0 }, { 0, 0, -1 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { { 100,-100, 0 }, { 0, 0, -1 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { { 100, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {-100, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {-100,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct VertexPN) { { 100,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
     
     idx = 0;
     indices[idx++] = 0; indices[idx++] = 1; indices[idx++] = 2;
@@ -303,14 +316,15 @@ static struct {
     GLuint vb, ib;
     int shader;
     int indexCount;
-    GLint locPos, locNrm, locCol;
+    GLint locPos, locNrm, locCol, locTex;
     GLuint vb_2, ib_2;
     int shader_2;
     int indexCount_2;
     GLint locPos_2, locCol_2;
 } drawObj;
 
-static GLint locPVW;
+static GLint locPVW, locTex;
+static int texture = 0;
 
 static void CreateResource(void)
 {
@@ -319,8 +333,10 @@ static void CreateResource(void)
 	drawObj.locPos = glGetAttribLocation(drawObj.shader, "position0");
 	drawObj.locNrm = glGetAttribLocation(drawObj.shader, "normal0");
 	drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
+	drawObj.locTex = glGetAttribLocation(drawObj.shader, "tex0");
 	CHECK_GL_ERROR();
 	locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
+	locTex = glGetUniformLocation(drawObj.shader, "tex");
 	CHECK_GL_ERROR();
 	
 	glUseProgram(drawObj.shader);
@@ -376,10 +392,12 @@ static void drawCube(int width, int height)
     CHECK_GL_ERROR();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     CHECK_GL_ERROR();
-    glViewport(0, 0, width, height);
+    // glViewport(0, 0, width, height);
     CHECK_GL_ERROR();
     
     int stride = sizeof(struct VertexPN);
+    
+    glDisable(GL_TEXTURE_2D);
     
     glUseProgram(drawObj.shader_2);
     CHECK_GL_ERROR();
@@ -419,6 +437,7 @@ static void drawCube(int width, int height)
     world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 0.0f, 0.0f, 1.0f ) );
     world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 1.0f, 0.0f, 0.0f ));
 #endif
+    glEnable(GL_TEXTURE_2D);
     CHECK_GL_ERROR();
     glUseProgram(drawObj.shader);
     CHECK_GL_ERROR();
@@ -431,6 +450,7 @@ static void drawCube(int width, int height)
     drawObj.locPos = glGetAttribLocation(drawObj.shader, "position0");
     drawObj.locNrm = glGetAttribLocation(drawObj.shader, "normal0");
     drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
+    drawObj.locTex = glGetAttribLocation(drawObj.shader, "tex0");
     
     stride = sizeof(struct VertexPN);
     glVertexAttribPointer(drawObj.locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
@@ -439,9 +459,12 @@ static void drawCube(int width, int height)
     CHECK_GL_ERROR();
     glVertexAttribPointer(drawObj.locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
     CHECK_GL_ERROR();
+    glVertexAttribPointer(drawObj.locTex, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Texture);
+    CHECK_GL_ERROR();
     glEnableVertexAttribArray(drawObj.locPos);
     glEnableVertexAttribArray(drawObj.locNrm);
     glEnableVertexAttribArray(drawObj.locCol);
+    glEnableVertexAttribArray(drawObj.locTex);
     CHECK_GL_ERROR();
     
     struct mat4 r1 = {
@@ -519,6 +542,8 @@ static void drawCube(int width, int height)
     
     CHECK_GL_ERROR();
     glUniformMatrix4fv(locPVW, 1, GL_TRUE, (float *) &m);
+    glUniform1i(locTex, 0);
+    glBindTexture(GL_TEXTURE_2D, texture);
     CHECK_GL_ERROR();
     
     glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
@@ -532,18 +557,46 @@ static void drawCube(int width, int height)
 
 static int create_texture(void)
 {
-    static unsigned char data[16 * 16 * 4];
-    GLuint tex;
+    FILE *fp;
+    if ((fp = popen("png2pnm < test.png", "r")) == NULL) {
+	perror("popen");
+	exit(1);
+    }
     
-    for (int y = 0; y < 16; y++) {
-	for (int x = 0; x < 16; x++) {
-	    data[(y * 16 + x) * 4 + 0] = rand();
-	    data[(y * 16 + x) * 4 + 1] = rand();
-	    data[(y * 16 + x) * 4 + 2] = rand();
-	    data[(y * 16 + x) * 4 + 3] = rand();
+    char magic[3];
+    int width, height;
+    int max;
+    if (fscanf(fp, "%2s %d %d %d\n", magic, &width, &height, &max) != 4) {
+	printf("bad header.\n");
+	exit(1);
+    }
+    
+    unsigned char *data;
+    if ((data = malloc(width * height * 4)) == NULL) {
+	printf("out of memory.\n");
+	exit(1);
+    }
+    memset(data, 0, width * height * 4);
+    
+    for (int y = 0; y < height; y++) {
+	for (int x = 0; x < width; x++) {
+	    int r = fgetc(fp);
+	    int g = fgetc(fp);
+	    int b = fgetc(fp);
+	    if (b == EOF) {
+		printf("unexpected eof.\n");
+		exit(1);
+	    }
+	    data[(y * width + x) * 4 + 0] = r;
+	    data[(y * width + x) * 4 + 1] = g;
+	    data[(y * width + x) * 4 + 2] = b;
+	    data[(y * width + x) * 4 + 3] = 255;
 	}
     }
     
+    pclose(fp);
+    
+    GLuint tex;
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
     // glEnable(GL_SCISSOR_TEST);
@@ -551,7 +604,8 @@ static int create_texture(void)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 16, 16, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
     
     return tex;
 }
@@ -565,9 +619,8 @@ static gboolean timeout_cb(gpointer user_data)
 static gboolean render(GtkWidget *area, GdkGLContext *context)
 {
     CHECK_GL_ERROR();
-    static int tex = 0;
-    if (tex == 0) {
-	tex = create_texture();
+    if (texture == 0) {
+	texture = create_texture();
 	CreateResource();
     }
     
@@ -588,8 +641,17 @@ static gboolean render(GtkWidget *area, GdkGLContext *context)
 	}
     }
     
+    printf("scale=%d.\n",
+	    gdk_window_get_scale_factor(gtk_widget_get_window(area)));
+    printf("%dx%d\n",
+	    gdk_window_get_width(gtk_widget_get_window(area)),
+	    gdk_window_get_height(gtk_widget_get_window(area)));
+#if 0
+    drawCube(500, 500);
+#else
     drawCube(gdk_window_get_width(gtk_widget_get_window(area)),
 	    gdk_window_get_height(gtk_widget_get_window(area)));
+#endif
     
     CHECK_GL_ERROR();
     
@@ -611,7 +673,7 @@ int main(int argc, char **argv)
     gtk_gl_area_set_auto_render(GTK_GL_AREA(drawable), FALSE);
     g_signal_connect(drawable, "render", G_CALLBACK(render), NULL);
     gtk_widget_show(drawable);
-    gtk_widget_set_size_request(drawable, 500 ,500);
+    gtk_widget_set_size_request(drawable, 500, 500);
     gtk_container_add(GTK_CONTAINER(toplevel), drawable);
     
     g_timeout_add(17, timeout_cb, NULL);
