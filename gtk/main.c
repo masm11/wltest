@@ -17,7 +17,7 @@ static void check_gl_error(const char *file, int lineno)
     exit(1);
 }
 
-static const char *srcVertexShader =
+static const char *vertex_shader_source1 =
 	"attribute vec4 position0;\n"
 	"attribute vec3 normal0;\n"
 	"attribute vec3 color0;\n"
@@ -36,7 +36,7 @@ static const char *srcVertexShader =
 	"  vsout_uv = tex0;\n"
 	"}";
 
-static const char *srcFragmentShader =
+static const char *fragment_shader_source1 =
 	// "precision mediump float;\n"
 	"uniform sampler2D tex;\n"
 	"varying vec4 vsout_color0;\n"
@@ -46,7 +46,7 @@ static const char *srcFragmentShader =
 	"  gl_FragColor = vec4(vsout_color0.rgb * texture2D(tex, vsout_uv).rgb * vsout_shade, 1.0);\n"
 	"}";
 
-static const char *srcVertexShader_2 =
+static const char *vertex_shader_source2 =
 	"attribute vec4 position2;\n"
 	"attribute vec3 color2;\n"
 	"varying vec4 vsout_color2;\n"
@@ -56,13 +56,13 @@ static const char *srcVertexShader_2 =
 	"  vsout_color2.a = 1.0;\n"
 	"}";
 
-static const char *srcFragmentShader_2 =
+static const char *fragment_shader_source2 =
 	"varying vec4 vsout_color2;\n"
 	"void main() {\n"
 	"  gl_FragColor = vsout_color2;\n"
 	"}";
 
-static void checkCompiled(int shader)
+static void check_compiled(int shader)
 {
     int status;
     glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
@@ -79,34 +79,30 @@ static void checkCompiled(int shader)
     fprintf(stdout, "Compile Succeed.\n");
 }
 
-static int createShaderProgram(const char *srcVS, const char *srcFS)
+static int create_shader_program(const char *vs_src, const char *fs_src)
 {
-    int shaderVS = glCreateShader(GL_VERTEX_SHADER);
-    int shaderFS = glCreateShader(GL_FRAGMENT_SHADER);
+    int vs = glCreateShader(GL_VERTEX_SHADER);
+    int fs = glCreateShader(GL_FRAGMENT_SHADER);
     
     fprintf(stderr, "vertex shader.\n");
-    glShaderSource(shaderVS, 1, &srcVS, 0);
-    int errCode = glGetError();
-    if (errCode != GL_NO_ERROR) {
-	fprintf(stderr, "GLErr.  %X\n", errCode);
-	exit(1);
-    }
+    glShaderSource(vs, 1, &vs_src, 0);
+    CHECK_GL_ERROR();
     
-    glCompileShader(shaderVS);
-    checkCompiled(shaderVS);
+    glCompileShader(vs);
+    check_compiled(vs);
     
     fprintf(stderr, "fragment shader.\n");
-    glShaderSource(shaderFS, 1, &srcFS, NULL);
-    glCompileShader(shaderFS);
-    checkCompiled(shaderFS);
+    glShaderSource(fs, 1, &fs_src, NULL);
+    glCompileShader(fs);
+    check_compiled(fs);
     
-    int program = glCreateProgram();
-    glAttachShader(program, shaderVS);
-    glAttachShader(program, shaderFS);
+    int prog = glCreateProgram();
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
     
-    glLinkProgram(program);
+    glLinkProgram(prog);
     
-    return program;
+    return prog;
 }
 
 struct vec3 {
@@ -149,43 +145,26 @@ static struct vec4 mat4_mul_vec4(struct mat4 m, struct vec4 v)
     return r;
 }
 
-#if 0
-static struct mat4 mat4_tr(struct mat4 s)
-{
-    struct mat4 d;
-    for (int y = 0; y < 4; y++) {
-	for (int x = 0; x < 4; x++)
-	    d.v[y][x] = s.v[x][y];
-    }
-    return d;
-}
-#endif
-
-struct VertexPosition {
-    float x, y, z;
-};
-struct VertexNormal {
-    float nx, ny, nz;
-};
-struct TexturePosition {
-    float u, v;
-};
-struct Color {
-    float r, g, b;
-};
-
-struct VertexPN {
-    struct VertexPosition Position;
-    struct VertexNormal Normal;
-    struct TexturePosition Texture;
-    struct Color Color;
+struct vertex_t {
+    struct position_t {
+	float x, y, z;
+    } position;
+    struct normal_t {
+	float nx, ny, nz;
+    } normal;
+    struct texture_t {
+	float u, v;
+    } texture;
+    struct color_t {
+	float r, g, b;
+    } color;
 };
 
 #define TORUS_N 100
 #define RADIUS (3.0f)
 #define MINOR_RADIUS (1.0f)
 
-static void create_torus(uint16_t *indices, struct VertexPN *vertices)
+static void create_torus(uint16_t *indices, struct vertex_t *vertices)
 {
     int idx;
     
@@ -223,22 +202,22 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
 	    };
 	    struct vec4 n = mat4_mul_vec4(rot_y, norm);
 	    
-	    vertices[idx++] = (struct VertexPN) {
-		.Position = {
+	    vertices[idx++] = (struct vertex_t) {
+		.position = {
 		    .x = v.v[0],
 		    .y = v.v[1],
 		    .z = v.v[2],
 		},
-		.Normal = {
+		.normal = {
 		    .nx = n.v[0],
 		    .ny = n.v[1],
 		    .nz = n.v[2],
 		},
-		.Texture = {
+		.texture = {
 		    .u = (float) i / TORUS_N,
 		    .v = (float) j / TORUS_N,
 		},
-		.Color = {
+		.color = {
 		    .r = (float) i / TORUS_N,
 		    .g = (float) j / TORUS_N,
 		    .b = 0,
@@ -266,27 +245,27 @@ static void create_torus(uint16_t *indices, struct VertexPN *vertices)
     }
 }
 
-static void create_flat(uint16_t *indices, struct VertexPN *vertices)
+static void create_flat(uint16_t *indices, struct vertex_t *vertices)
 {
     int idx;
     
     idx = 0;
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { { 100, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {-100, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {-100,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
-    vertices[idx++] = (struct VertexPN) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
-    vertices[idx++] = (struct VertexPN) { { 100,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct vertex_t) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct vertex_t) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct vertex_t) { { 100, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 1 } };
+    vertices[idx++] = (struct vertex_t) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { {   0, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { {-100, 100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct vertex_t) { {-100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct vertex_t) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct vertex_t) { {-100,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 1, 1 } };
+    vertices[idx++] = (struct vertex_t) { {   0,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { {   0,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { { 100,   0, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
+    vertices[idx++] = (struct vertex_t) { { 100,-100, 0 }, { 0, 0, -1 }, { 0, 0 }, { 0, 0, 0 } };
     
     idx = 0;
     indices[idx++] = 0; indices[idx++] = 1; indices[idx++] = 2;
@@ -313,10 +292,10 @@ static struct {
 static GLint locPVW, locTex, locRot;
 static int texture = 0;
 
-static void CreateResource(void)
+static void create_resources(void)
 {
     {
-	drawObj.shader = createShaderProgram(srcVertexShader, srcFragmentShader);
+	drawObj.shader = create_shader_program(vertex_shader_source1, fragment_shader_source1);
 	drawObj.locPos = glGetAttribLocation(drawObj.shader, "position0");
 	drawObj.locNrm = glGetAttribLocation(drawObj.shader, "normal0");
 	drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
@@ -330,7 +309,7 @@ static void CreateResource(void)
 	glUseProgram(drawObj.shader);
 	
 	static uint16_t indices_torus[TORUS_N * TORUS_N * 6];
-	static struct VertexPN vertices_torus[TORUS_N * TORUS_N];
+	static struct vertex_t vertices_torus[TORUS_N * TORUS_N];
 	create_torus(indices_torus, vertices_torus);
 	glGenBuffers(1, &drawObj.vb);
 	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
@@ -343,7 +322,7 @@ static void CreateResource(void)
     }
     
     {
-	drawObj.shader_2 = createShaderProgram(srcVertexShader_2, srcFragmentShader_2);
+	drawObj.shader_2 = create_shader_program(vertex_shader_source2, fragment_shader_source2);
 	drawObj.locPos_2 = glGetAttribLocation(drawObj.shader_2, "position2");
 	drawObj.locCol_2 = glGetAttribLocation(drawObj.shader_2, "color2");
 	CHECK_GL_ERROR();
@@ -351,7 +330,7 @@ static void CreateResource(void)
 	glUseProgram(drawObj.shader_2);
 	
 	static uint16_t indices_2[24];
-	static struct VertexPN vertices_2[16];
+	static struct vertex_t vertices_2[16];
 	create_flat(indices_2, vertices_2);
 	glGenBuffers(1, &drawObj.vb_2);
 	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb_2);
@@ -364,15 +343,6 @@ static void CreateResource(void)
     }
 }
 
-#if 0
-static void DestroyResource(void)
-{
-    glDeleteBuffers(1, &drawObj.vb);
-    glDeleteBuffers(1, &drawObj.ib);
-    glDeleteProgram(drawObj.shader);
-}
-#endif
-
 static void drawCube(int width, int height)
 {
     CHECK_GL_ERROR();
@@ -383,7 +353,7 @@ static void drawCube(int width, int height)
     // glViewport(0, 0, width, height);
     CHECK_GL_ERROR();
     
-    int stride = sizeof(struct VertexPN);
+    int stride = sizeof(struct vertex_t);
     
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_CULL_FACE);
@@ -400,9 +370,9 @@ static void drawCube(int width, int height)
     drawObj.locCol_2 = glGetAttribLocation(drawObj.shader_2, "color2");
     
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+    glVertexAttribPointer(drawObj.locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
+    glVertexAttribPointer(drawObj.locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
     CHECK_GL_ERROR();
     glEnableVertexAttribArray(drawObj.locPos_2);
     glEnableVertexAttribArray(drawObj.locCol_2);
@@ -416,16 +386,6 @@ static void drawCube(int width, int height)
     if ((angle += 0.01) >= 12 * M_PI)
 	angle -= 12 * M_PI;
     
-#if 0
-    struct vec3 cameraPos = {
-	{ 0.0, 0.0f, 10.0f },
-    };
-    glm::mat4 proj = glm::perspective<float>( 30.0f, float(width)/float(height), 1.0f, 100.0f );
-    glm::mat4 view = glm::lookAt<float>( cameraPos, glm::vec3(0.0f,0.0f,0.0f), glm::vec3(0.0f,1.0f,0.0f) );
-    glm::mat4 world= glm::rotate( glm::mat4(1.0f), (float)angle, glm::vec3(0.0f,0.0f,1.0f) );
-    world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 0.0f, 0.0f, 1.0f ) );
-    world= glm::rotate( world, (float) angle * 0.5f, glm::vec3( 1.0f, 0.0f, 0.0f ));
-#endif
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
@@ -443,14 +403,14 @@ static void drawCube(int width, int height)
     drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
     drawObj.locTex = glGetAttribLocation(drawObj.shader, "tex0");
     
-    stride = sizeof(struct VertexPN);
-    glVertexAttribPointer(drawObj.locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Position);
+    stride = sizeof(struct vertex_t);
+    glVertexAttribPointer(drawObj.locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Normal);
+    glVertexAttribPointer(drawObj.locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->normal);
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Color);
+    glVertexAttribPointer(drawObj.locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locTex, 3, GL_FLOAT, GL_FALSE, stride, &((struct VertexPN *) NULL)->Texture);
+    glVertexAttribPointer(drawObj.locTex, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->texture);
     CHECK_GL_ERROR();
     glEnableVertexAttribArray(drawObj.locPos);
     glEnableVertexAttribArray(drawObj.locNrm);
@@ -614,7 +574,7 @@ static gboolean render(GtkWidget *area, GdkGLContext *context)
     CHECK_GL_ERROR();
     if (texture == 0) {
 	texture = create_texture();
-	CreateResource();
+	create_resources();
     }
     
     static float v = 0.0f;
