@@ -296,20 +296,13 @@ static void create_resources(void)
 {
     {
 	drawObj.shader = create_shader_program(vertex_shader_source1, fragment_shader_source1);
-	drawObj.locPos = glGetAttribLocation(drawObj.shader, "position0");
-	drawObj.locNrm = glGetAttribLocation(drawObj.shader, "normal0");
-	drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
-	drawObj.locTex = glGetAttribLocation(drawObj.shader, "tex0");
-	CHECK_GL_ERROR();
 	locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
 	locRot = glGetUniformLocation(drawObj.shader, "matRot");
 	locTex = glGetUniformLocation(drawObj.shader, "tex");
 	CHECK_GL_ERROR();
 	
-	glUseProgram(drawObj.shader);
-	
-	static uint16_t indices_torus[TORUS_N * TORUS_N * 6];
-	static struct vertex_t vertices_torus[TORUS_N * TORUS_N];
+	uint16_t indices_torus[TORUS_N * TORUS_N * 6];
+	struct vertex_t vertices_torus[TORUS_N * TORUS_N];
 	create_torus(indices_torus, vertices_torus);
 	glGenBuffers(1, &drawObj.vb);
 	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
@@ -323,14 +316,10 @@ static void create_resources(void)
     
     {
 	drawObj.shader_2 = create_shader_program(vertex_shader_source2, fragment_shader_source2);
-	drawObj.locPos_2 = glGetAttribLocation(drawObj.shader_2, "position2");
-	drawObj.locCol_2 = glGetAttribLocation(drawObj.shader_2, "color2");
 	CHECK_GL_ERROR();
 	
-	glUseProgram(drawObj.shader_2);
-	
-	static uint16_t indices_2[24];
-	static struct vertex_t vertices_2[16];
+	uint16_t indices_2[24];
+	struct vertex_t vertices_2[16];
 	create_flat(indices_2, vertices_2);
 	glGenBuffers(1, &drawObj.vb_2);
 	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb_2);
