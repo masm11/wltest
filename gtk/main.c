@@ -30,7 +30,8 @@ static const char *vertex_shader_source1 =
 	"void main() {\n"
 	"  gl_Position = matPVW * position0;\n"
 	"  vec4 norm = matRot * vec4(normal0.xyz, 0.0);\n"
-	"  vsout_shade = clamp(dot(normalize(vec3(1.0, 1.0, 1.0)), normalize(norm.xyz)), 0.0, 1.0);\n"
+	"  float shade = clamp(dot(normalize(vec3(1.0, 1.0, 1.0)), normalize(norm.xyz)), 0.0, 1.0);\n"
+	"  vsout_shade = shade * 0.7 + 0.3;\n"
 	"  vsout_color0.rgb = color0;\n"
 	"  vsout_color0.a = 1.0;\n"
 	"  vsout_uv = tex0;\n"
@@ -146,16 +147,16 @@ static struct vec4 mat4_mul_vec4(struct mat4 m, struct vec4 v)
 }
 
 struct vertex_t {
-    struct position_t {
+    struct {
 	float x, y, z;
     } position;
-    struct normal_t {
+    struct {
 	float nx, ny, nz;
     } normal;
-    struct texture_t {
+    struct {
 	float u, v;
     } texture;
-    struct color_t {
+    struct {
 	float r, g, b;
     } color;
 };
@@ -283,18 +284,18 @@ struct work_t {
     
     struct torus_t {
 	double angle;
-	GLuint vb, ib;
+	
 	int shader;
-	int indexCount;
-	GLint locPos, locNrm, locCol, locTex;
+	GLuint vertex_buffer, index_buffer;
+	int nr_indices;
+	
 	GLuint tex;
     } torus;
     
     struct background_t {
-	GLuint vb_2, ib_2;
-	int shader_2;
-	int indexCount_2;
-	GLint locPos_2, locCol_2;
+	int shader;
+	GLuint vertex_buffer, index_buffer;
+	int nr_indices;
     } bg;
 };
 
@@ -361,13 +362,13 @@ static void create_torus_model(struct torus_t *tw)
     uint16_t indices_torus[TORUS_N * TORUS_N * 6];
     struct vertex_t vertices_torus[TORUS_N * TORUS_N];
     create_torus(indices_torus, vertices_torus);
-    glGenBuffers(1, &tw->vb);
-    glBindBuffer(GL_ARRAY_BUFFER, tw->vb);
+    glGenBuffers(1, &tw->vertex_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, tw->vertex_buffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof vertices_torus, vertices_torus, GL_STATIC_DRAW);
-    glGenBuffers(1, &tw->ib);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->ib);
+    glGenBuffers(1, &tw->index_buffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->index_buffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
-    tw->indexCount = TORUS_N * TORUS_N * 6;
+    tw->nr_indices = TORUS_N * TORUS_N * 6;
     CHECK_GL_ERROR();
     
     create_texture(tw);
@@ -375,19 +376,19 @@ static void create_torus_model(struct torus_t *tw)
 
 static void create_background_model(struct background_t *bw)
 {
-    bw->shader_2 = create_shader_program(vertex_shader_source2, fragment_shader_source2);
+    bw->shader = create_shader_program(vertex_shader_source2, fragment_shader_source2);
     CHECK_GL_ERROR();
     
-    uint16_t indices_2[24];
-    struct vertex_t vertices_2[16];
-    create_flat(indices_2, vertices_2);
-    glGenBuffers(1, &bw->vb_2);
-    glBindBuffer(GL_ARRAY_BUFFER, bw->vb_2);
-    glBufferData(GL_ARRAY_BUFFER, sizeof vertices_2, vertices_2, GL_STATIC_DRAW);
-    glGenBuffers(1, &bw->ib_2);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bw->ib_2);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_2, indices_2, GL_STATIC_DRAW);
-    bw->indexCount_2 = 24;
+    uint16_t indices[24];
+    struct vertex_t vertices[16];
+    create_flat(indices, vertices);
+    glGenBuffers(1, &bw->vertex_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, bw->vertex_buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof vertices, vertices, GL_STATIC_DRAW);
+    glGenBuffers(1, &bw->index_buffer);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bw->index_buffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices, indices, GL_STATIC_DRAW);
+    bw->nr_indices = 24;
     CHECK_GL_ERROR();
 }
 
@@ -410,27 +411,27 @@ static void draw_background(struct background_t *bw)
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_CULL_FACE);
     
-    glUseProgram(bw->shader_2);
+    glUseProgram(bw->shader);
     CHECK_GL_ERROR();
     
-    glBindBuffer(GL_ARRAY_BUFFER, bw->vb_2);
+    glBindBuffer(GL_ARRAY_BUFFER, bw->vertex_buffer);
     CHECK_GL_ERROR();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bw->ib_2);
-    CHECK_GL_ERROR();
-    
-    GLint locPos_2 = glGetAttribLocation(bw->shader_2, "position2");
-    GLint locCol_2 = glGetAttribLocation(bw->shader_2, "color2");
-    
-    CHECK_GL_ERROR();
-    glVertexAttribPointer(locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
-    CHECK_GL_ERROR();
-    glVertexAttribPointer(locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
-    CHECK_GL_ERROR();
-    glEnableVertexAttribArray(locPos_2);
-    glEnableVertexAttribArray(locCol_2);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bw->index_buffer);
     CHECK_GL_ERROR();
     
-    glDrawElements(GL_TRIANGLES, bw->indexCount_2, GL_UNSIGNED_SHORT, NULL);
+    GLint locPos = glGetAttribLocation(bw->shader, "position2");
+    GLint locCol = glGetAttribLocation(bw->shader, "color2");
+    
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
+    CHECK_GL_ERROR();
+    glEnableVertexAttribArray(locPos);
+    glEnableVertexAttribArray(locCol);
+    CHECK_GL_ERROR();
+    
+    glDrawElements(GL_TRIANGLES, bw->nr_indices, GL_UNSIGNED_SHORT, NULL);
 }
 
 static void draw_torus(struct torus_t *tw, int width, int height)
@@ -447,9 +448,9 @@ static void draw_torus(struct torus_t *tw, int width, int height)
     glUseProgram(tw->shader);
     CHECK_GL_ERROR();
     
-    glBindBuffer(GL_ARRAY_BUFFER, tw->vb);
+    glBindBuffer(GL_ARRAY_BUFFER, tw->vertex_buffer);
     CHECK_GL_ERROR();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->ib);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->index_buffer);
     CHECK_GL_ERROR();
     
     GLint locPos = glGetAttribLocation(tw->shader, "position0");
@@ -560,24 +561,18 @@ static void draw_torus(struct torus_t *tw, int width, int height)
     glBindTexture(GL_TEXTURE_2D, tw->tex);
     CHECK_GL_ERROR();
     
-    glBindBuffer(GL_ARRAY_BUFFER, tw->vb);
+    glBindBuffer(GL_ARRAY_BUFFER, tw->vertex_buffer);
     CHECK_GL_ERROR();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->ib);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->index_buffer);
     CHECK_GL_ERROR();
     
-    glDrawElements(GL_TRIANGLES, tw->indexCount, GL_UNSIGNED_SHORT, NULL);
+    glDrawElements(GL_TRIANGLES, tw->nr_indices, GL_UNSIGNED_SHORT, NULL);
 }
 
 static void draw(struct work_t *w, int width, int height)
 {
     draw_background(&w->bg);
     draw_torus(&w->torus, width, height);
-}
-
-static gboolean timeout_cb(gpointer user_data)
-{
-    gtk_gl_area_queue_render(GTK_GL_AREA(drawable));
-    return G_SOURCE_CONTINUE;
 }
 
 static gboolean render(GtkWidget *area, GdkGLContext *context, gpointer user_data)
@@ -593,20 +588,18 @@ static gboolean render(GtkWidget *area, GdkGLContext *context, gpointer user_dat
     glClearColor(0, 0, 0, 1);
     CHECK_GL_ERROR();
     
-#if 0
-    printf("scale=%d.\n",
-	    gdk_window_get_scale_factor(gtk_widget_get_window(area)));
-    printf("%dx%d\n",
-	    gdk_window_get_width(gtk_widget_get_window(area)),
-	    gdk_window_get_height(gtk_widget_get_window(area)));
-#endif
-    
     draw(w, gdk_window_get_width(gtk_widget_get_window(area)),
 	    gdk_window_get_height(gtk_widget_get_window(area)));
     
     CHECK_GL_ERROR();
     
     return TRUE;
+}
+
+static gboolean timeout_cb(gpointer user_data)
+{
+    gtk_gl_area_queue_render(GTK_GL_AREA(drawable));
+    return G_SOURCE_CONTINUE;
 }
 
 int main(int argc, char **argv)
