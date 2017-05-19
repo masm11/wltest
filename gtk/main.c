@@ -38,12 +38,12 @@ static const char *vertex_shader_source1 =
 
 static const char *fragment_shader_source1 =
 	// "precision mediump float;\n"
-	"uniform sampler2D tex;\n"
+	"uniform sampler2D texture;\n"
 	"varying vec4 vsout_color0;\n"
 	"varying vec2 vsout_uv;\n"
 	"varying float vsout_shade;\n"
 	"void main() {\n"
-	"  gl_FragColor = vec4(vsout_color0.rgb * texture2D(tex, vsout_uv).rgb * vsout_shade, 1.0);\n"
+	"  gl_FragColor = vec4(vsout_color0.rgb * texture2D(texture, vsout_uv).rgb * vsout_shade, 1.0);\n"
 	"}";
 
 static const char *vertex_shader_source2 =
@@ -278,68 +278,131 @@ static void create_flat(uint16_t *indices, struct vertex_t *vertices)
     indices[idx++] =14; indices[idx++] =13; indices[idx++] =15;
 }
 
-static struct {
-    GLuint vb, ib;
-    int shader;
-    int indexCount;
-    GLint locPos, locNrm, locCol, locTex;
-    GLuint vb_2, ib_2;
-    int shader_2;
-    int indexCount_2;
-    GLint locPos_2, locCol_2;
-} drawObj;
+struct work_t {
+    int inited;
+    
+    struct torus_t {
+	double angle;
+	GLuint vb, ib;
+	int shader;
+	int indexCount;
+	GLint locPos, locNrm, locCol, locTex;
+	GLuint tex;
+    } torus;
+    
+    struct background_t {
+	GLuint vb_2, ib_2;
+	int shader_2;
+	int indexCount_2;
+	GLint locPos_2, locCol_2;
+    } bg;
+};
 
-static GLint locPVW, locTex, locRot;
-static int texture = 0;
-
-static void create_resources(void)
+static void create_texture(struct torus_t *tw)
 {
-    {
-	drawObj.shader = create_shader_program(vertex_shader_source1, fragment_shader_source1);
-	locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
-	locRot = glGetUniformLocation(drawObj.shader, "matRot");
-	locTex = glGetUniformLocation(drawObj.shader, "tex");
-	CHECK_GL_ERROR();
-	
-	uint16_t indices_torus[TORUS_N * TORUS_N * 6];
-	struct vertex_t vertices_torus[TORUS_N * TORUS_N];
-	create_torus(indices_torus, vertices_torus);
-	glGenBuffers(1, &drawObj.vb);
-	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
-	glBufferData(GL_ARRAY_BUFFER, sizeof vertices_torus, vertices_torus, GL_STATIC_DRAW);
-	glGenBuffers(1, &drawObj.ib);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
-	drawObj.indexCount = TORUS_N * TORUS_N * 6;
-	CHECK_GL_ERROR();
+    FILE *fp;
+    if ((fp = popen("png2pnm < test.png", "r")) == NULL) {
+	perror("popen");
+	exit(1);
     }
     
-    {
-	drawObj.shader_2 = create_shader_program(vertex_shader_source2, fragment_shader_source2);
-	CHECK_GL_ERROR();
-	
-	uint16_t indices_2[24];
-	struct vertex_t vertices_2[16];
-	create_flat(indices_2, vertices_2);
-	glGenBuffers(1, &drawObj.vb_2);
-	glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb_2);
-	glBufferData(GL_ARRAY_BUFFER, sizeof vertices_2, vertices_2, GL_STATIC_DRAW);
-	glGenBuffers(1, &drawObj.ib_2);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib_2);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_2, indices_2, GL_STATIC_DRAW);
-	drawObj.indexCount_2 = 24;
-	CHECK_GL_ERROR();
+    char magic[3];
+    int width, height;
+    int max;
+    if (fscanf(fp, "%2s %d %d %d\n", magic, &width, &height, &max) != 4) {
+	printf("bad header.\n");
+	exit(1);
     }
+    
+    unsigned char *data;
+    if ((data = malloc(width * height * 4)) == NULL) {
+	printf("out of memory.\n");
+	exit(1);
+    }
+    memset(data, 0, width * height * 4);
+    
+    for (int y = 0; y < height; y++) {
+	for (int x = 0; x < width; x++) {
+	    int r = fgetc(fp);
+	    int g = fgetc(fp);
+	    int b = fgetc(fp);
+	    if (b == EOF) {
+		printf("unexpected eof.\n");
+		exit(1);
+	    }
+	    data[(y * width + x) * 4 + 0] = r;
+	    data[(y * width + x) * 4 + 1] = g;
+	    data[(y * width + x) * 4 + 2] = b;
+	    data[(y * width + x) * 4 + 3] = 255;
+	}
+    }
+    
+    pclose(fp);
+    
+    GLuint tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    // glEnable(GL_SCISSOR_TEST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    
+    tw->tex = tex;
 }
 
-static void drawCube(int width, int height)
+static void create_torus_model(struct torus_t *tw)
+{
+    tw->shader = create_shader_program(vertex_shader_source1, fragment_shader_source1);
+    CHECK_GL_ERROR();
+    
+    uint16_t indices_torus[TORUS_N * TORUS_N * 6];
+    struct vertex_t vertices_torus[TORUS_N * TORUS_N];
+    create_torus(indices_torus, vertices_torus);
+    glGenBuffers(1, &tw->vb);
+    glBindBuffer(GL_ARRAY_BUFFER, tw->vb);
+    glBufferData(GL_ARRAY_BUFFER, sizeof vertices_torus, vertices_torus, GL_STATIC_DRAW);
+    glGenBuffers(1, &tw->ib);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->ib);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_torus, indices_torus, GL_STATIC_DRAW);
+    tw->indexCount = TORUS_N * TORUS_N * 6;
+    CHECK_GL_ERROR();
+    
+    create_texture(tw);
+}
+
+static void create_background_model(struct background_t *bw)
+{
+    bw->shader_2 = create_shader_program(vertex_shader_source2, fragment_shader_source2);
+    CHECK_GL_ERROR();
+    
+    uint16_t indices_2[24];
+    struct vertex_t vertices_2[16];
+    create_flat(indices_2, vertices_2);
+    glGenBuffers(1, &bw->vb_2);
+    glBindBuffer(GL_ARRAY_BUFFER, bw->vb_2);
+    glBufferData(GL_ARRAY_BUFFER, sizeof vertices_2, vertices_2, GL_STATIC_DRAW);
+    glGenBuffers(1, &bw->ib_2);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bw->ib_2);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof indices_2, indices_2, GL_STATIC_DRAW);
+    bw->indexCount_2 = 24;
+    CHECK_GL_ERROR();
+}
+
+static void create_resources(struct work_t *w)
+{
+    create_torus_model(&w->torus);
+    create_background_model(&w->bg);
+}
+
+static void draw_background(struct background_t *bw)
 {
     CHECK_GL_ERROR();
     glEnable(GL_DEPTH_TEST);
     CHECK_GL_ERROR();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    CHECK_GL_ERROR();
-    // glViewport(0, 0, width, height);
     CHECK_GL_ERROR();
     
     int stride = sizeof(struct vertex_t);
@@ -347,70 +410,72 @@ static void drawCube(int width, int height)
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_CULL_FACE);
     
-    glUseProgram(drawObj.shader_2);
+    glUseProgram(bw->shader_2);
     CHECK_GL_ERROR();
     
-    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb_2);
+    glBindBuffer(GL_ARRAY_BUFFER, bw->vb_2);
     CHECK_GL_ERROR();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib_2);
-    CHECK_GL_ERROR();
-    
-    drawObj.locPos_2 = glGetAttribLocation(drawObj.shader_2, "position2");
-    drawObj.locCol_2 = glGetAttribLocation(drawObj.shader_2, "color2");
-    
-    CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
-    CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
-    CHECK_GL_ERROR();
-    glEnableVertexAttribArray(drawObj.locPos_2);
-    glEnableVertexAttribArray(drawObj.locCol_2);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, bw->ib_2);
     CHECK_GL_ERROR();
     
-    glDrawElements(GL_TRIANGLES, drawObj.indexCount_2, GL_UNSIGNED_SHORT, NULL);
+    GLint locPos_2 = glGetAttribLocation(bw->shader_2, "position2");
+    GLint locCol_2 = glGetAttribLocation(bw->shader_2, "color2");
     
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(locPos_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
+    CHECK_GL_ERROR();
+    glVertexAttribPointer(locCol_2, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
+    CHECK_GL_ERROR();
+    glEnableVertexAttribArray(locPos_2);
+    glEnableVertexAttribArray(locCol_2);
+    CHECK_GL_ERROR();
+    
+    glDrawElements(GL_TRIANGLES, bw->indexCount_2, GL_UNSIGNED_SHORT, NULL);
+}
+
+static void draw_torus(struct torus_t *tw, int width, int height)
+{
     glClear(GL_DEPTH_BUFFER_BIT);
     
-    static double angle = 0;
-    if ((angle += 0.01) >= 12 * M_PI)
-	angle -= 12 * M_PI;
+    if ((tw->angle += 0.01) >= 12 * M_PI)
+	tw->angle -= 12 * M_PI;
     
     glEnable(GL_TEXTURE_2D);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_BACK);
     CHECK_GL_ERROR();
-    glUseProgram(drawObj.shader);
+    glUseProgram(tw->shader);
     CHECK_GL_ERROR();
     
-    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
+    glBindBuffer(GL_ARRAY_BUFFER, tw->vb);
     CHECK_GL_ERROR();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->ib);
     CHECK_GL_ERROR();
     
-    drawObj.locPos = glGetAttribLocation(drawObj.shader, "position0");
-    drawObj.locNrm = glGetAttribLocation(drawObj.shader, "normal0");
-    drawObj.locCol = glGetAttribLocation(drawObj.shader, "color0");
-    drawObj.locTex = glGetAttribLocation(drawObj.shader, "tex0");
+    GLint locPos = glGetAttribLocation(tw->shader, "position0");
+    GLint locNrm = glGetAttribLocation(tw->shader, "normal0");
+    GLint locCol = glGetAttribLocation(tw->shader, "color0");
+    GLint locTex = glGetAttribLocation(tw->shader, "tex0");
     
-    stride = sizeof(struct vertex_t);
-    glVertexAttribPointer(drawObj.locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
+    int stride = sizeof(struct vertex_t);
+    glVertexAttribPointer(locPos, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->position);
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->normal);
+    glVertexAttribPointer(locNrm, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->normal);
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
+    glVertexAttribPointer(locCol, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->color);
     CHECK_GL_ERROR();
-    glVertexAttribPointer(drawObj.locTex, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->texture);
+    glVertexAttribPointer(locTex, 3, GL_FLOAT, GL_FALSE, stride, &((struct vertex_t *) NULL)->texture);
     CHECK_GL_ERROR();
-    glEnableVertexAttribArray(drawObj.locPos);
-    glEnableVertexAttribArray(drawObj.locNrm);
-    glEnableVertexAttribArray(drawObj.locCol);
-    glEnableVertexAttribArray(drawObj.locTex);
+    glEnableVertexAttribArray(locPos);
+    glEnableVertexAttribArray(locNrm);
+    glEnableVertexAttribArray(locCol);
+    glEnableVertexAttribArray(locTex);
     CHECK_GL_ERROR();
     
     struct mat4 r1 = {
 	{
-	    { cos(angle), -sin(angle), 0, 0 },
-	    { sin(angle),  cos(angle), 0, 0 },
+	    { cos(tw->angle), -sin(tw->angle), 0, 0 },
+	    { sin(tw->angle),  cos(tw->angle), 0, 0 },
 	    { 0,                    0, 1, 0 },
 	    { 0,                    0, 0, 1 },
 	},
@@ -418,16 +483,16 @@ static void drawCube(int width, int height)
     struct mat4 r2 = {
 	{
 	    { 1,            0,             0, 0 },
-	    { 0, cos(angle/2), -sin(angle/2), 0 },
-	    { 0, sin(angle/2),  cos(angle/2), 0 },
+	    { 0, cos(tw->angle/2), -sin(tw->angle/2), 0 },
+	    { 0, sin(tw->angle/2),  cos(tw->angle/2), 0 },
 	    { 0,            0,             0, 1 },
 	},
     };
     struct mat4 r3 = {
 	{
-	    {  cos(angle/3), 0, sin(angle/3), 0 },
+	    {  cos(tw->angle/3), 0, sin(tw->angle/3), 0 },
 	    {             0, 1,            0, 0 },
-	    { -sin(angle/3), 0, cos(angle/3), 0 },
+	    { -sin(tw->angle/3), 0, cos(tw->angle/3), 0 },
 	    {             0, 0,            0, 1 },
 	},
     };
@@ -481,75 +546,32 @@ static void drawCube(int width, int height)
     m = mat4_mul(t1, m);
     m = mat4_mul(proj, m);
     
+    GLint locPVW = glGetUniformLocation(tw->shader, "matPVW");
+    GLint locRot = glGetUniformLocation(tw->shader, "matRot");
+    GLint locTexture = glGetUniformLocation(tw->shader, "texture");
+    
     CHECK_GL_ERROR();
     glUniformMatrix4fv(locPVW, 1, GL_TRUE, (float *) &m);
+    CHECK_GL_ERROR();
     glUniformMatrix4fv(locRot, 1, GL_TRUE, (float *) &rot);
-    glUniform1i(locTex, 0);
-    glBindTexture(GL_TEXTURE_2D, texture);
+    CHECK_GL_ERROR();
+    glUniform1i(locTexture, 0);
+    CHECK_GL_ERROR();
+    glBindTexture(GL_TEXTURE_2D, tw->tex);
     CHECK_GL_ERROR();
     
-    glBindBuffer(GL_ARRAY_BUFFER, drawObj.vb);
+    glBindBuffer(GL_ARRAY_BUFFER, tw->vb);
     CHECK_GL_ERROR();
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawObj.ib);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, tw->ib);
     CHECK_GL_ERROR();
     
-    glDrawElements(GL_TRIANGLES, drawObj.indexCount, GL_UNSIGNED_SHORT, NULL);
+    glDrawElements(GL_TRIANGLES, tw->indexCount, GL_UNSIGNED_SHORT, NULL);
 }
 
-
-static int create_texture(void)
+static void draw(struct work_t *w, int width, int height)
 {
-    FILE *fp;
-    if ((fp = popen("png2pnm < test.png", "r")) == NULL) {
-	perror("popen");
-	exit(1);
-    }
-    
-    char magic[3];
-    int width, height;
-    int max;
-    if (fscanf(fp, "%2s %d %d %d\n", magic, &width, &height, &max) != 4) {
-	printf("bad header.\n");
-	exit(1);
-    }
-    
-    unsigned char *data;
-    if ((data = malloc(width * height * 4)) == NULL) {
-	printf("out of memory.\n");
-	exit(1);
-    }
-    memset(data, 0, width * height * 4);
-    
-    for (int y = 0; y < height; y++) {
-	for (int x = 0; x < width; x++) {
-	    int r = fgetc(fp);
-	    int g = fgetc(fp);
-	    int b = fgetc(fp);
-	    if (b == EOF) {
-		printf("unexpected eof.\n");
-		exit(1);
-	    }
-	    data[(y * width + x) * 4 + 0] = r;
-	    data[(y * width + x) * 4 + 1] = g;
-	    data[(y * width + x) * 4 + 2] = b;
-	    data[(y * width + x) * 4 + 3] = 255;
-	}
-    }
-    
-    pclose(fp);
-    
-    GLuint tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    // glEnable(GL_SCISSOR_TEST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-    
-    return tex;
+    draw_background(&w->bg);
+    draw_torus(&w->torus, width, height);
 }
 
 static gboolean timeout_cb(gpointer user_data)
@@ -558,30 +580,18 @@ static gboolean timeout_cb(gpointer user_data)
     return G_SOURCE_CONTINUE;
 }
 
-static gboolean render(GtkWidget *area, GdkGLContext *context)
+static gboolean render(GtkWidget *area, GdkGLContext *context, gpointer user_data)
 {
+    struct work_t *w = user_data;
     CHECK_GL_ERROR();
-    if (texture == 0) {
-	texture = create_texture();
-	create_resources();
+    if (!w->inited) {
+	create_resources(w);
+	CHECK_GL_ERROR();
+	w->inited = 1;
     }
     
-    static float v = 0.0f;
-    static float diff = 0.002f;
+    glClearColor(0, 0, 0, 1);
     CHECK_GL_ERROR();
-    glClearColor(v, v, v, 1);
-    CHECK_GL_ERROR();
-    if (diff > 0) {
-	if ((v += diff) >= 0.3f) {
-	    v = 0.3f;
-	    diff = -diff;
-	}
-    } else {
-	if ((v += diff) < 0) {
-	    v = 0;
-	    diff = -diff;
-	}
-    }
     
 #if 0
     printf("scale=%d.\n",
@@ -591,7 +601,7 @@ static gboolean render(GtkWidget *area, GdkGLContext *context)
 	    gdk_window_get_height(gtk_widget_get_window(area)));
 #endif
     
-    drawCube(gdk_window_get_width(gtk_widget_get_window(area)),
+    draw(w, gdk_window_get_width(gtk_widget_get_window(area)),
 	    gdk_window_get_height(gtk_widget_get_window(area)));
     
     CHECK_GL_ERROR();
@@ -601,6 +611,9 @@ static gboolean render(GtkWidget *area, GdkGLContext *context)
 
 int main(int argc, char **argv)
 {
+    struct work_t w;
+    memset(&w, 0, sizeof w);
+    
     gtk_init(&argc, &argv);
     
     GtkWidget *toplevel = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -612,7 +625,7 @@ int main(int argc, char **argv)
     gtk_gl_area_set_has_alpha(GTK_GL_AREA(drawable), TRUE);
     gtk_gl_area_set_has_depth_buffer(GTK_GL_AREA(drawable), TRUE);
     gtk_gl_area_set_auto_render(GTK_GL_AREA(drawable), FALSE);
-    g_signal_connect(drawable, "render", G_CALLBACK(render), NULL);
+    g_signal_connect(drawable, "render", G_CALLBACK(render), &w);
     gtk_widget_show(drawable);
     gtk_widget_set_size_request(drawable, 500, 500);
     gtk_container_add(GTK_CONTAINER(toplevel), drawable);
