@@ -1,14 +1,8 @@
-#define WL_EGL_PLATFORM 1
 #include <stdio.h>
 #include <gtk/gtk.h>
-#include <EGL/egl.h>
-#include <gdk/gdkwayland.h>
-#include <wayland-client.h>
-#include <wayland-egl.h>
-#include <cairo/cairo-gl.h>
 #include <GLES2/gl2.h>
-#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 static GtkWidget *drawable;
@@ -22,18 +16,6 @@ static void check_gl_error(const char *file, int lineno)
     printf("%s:%d: err=0x%08x.\n", file, lineno, err);
     exit(1);
 }
-
-#if 0
-#define CHECK_EGL_ERROR() check_egl_error(__FILE__, __LINE__)
-static void check_egl_error(const char *file, int lineno)
-{
-    int err = eglGetError();
-    if (err == EGL_SUCCESS)
-	return;
-    printf("%s:%d: err=0x%08x.\n", file, lineno, err);
-    exit(1);
-}
-#endif
 
 static const char *srcVertexShader =
 	"attribute vec4 position0;\n"
@@ -167,6 +149,7 @@ static struct vec4 mat4_mul_vec4(struct mat4 m, struct vec4 v)
     return r;
 }
 
+#if 0
 static struct mat4 mat4_tr(struct mat4 s)
 {
     struct mat4 d;
@@ -176,6 +159,7 @@ static struct mat4 mat4_tr(struct mat4 s)
     }
     return d;
 }
+#endif
 
 struct VertexPosition {
     float x, y, z;
@@ -650,17 +634,16 @@ static gboolean render(GtkWidget *area, GdkGLContext *context)
 	}
     }
     
+#if 0
     printf("scale=%d.\n",
 	    gdk_window_get_scale_factor(gtk_widget_get_window(area)));
     printf("%dx%d\n",
 	    gdk_window_get_width(gtk_widget_get_window(area)),
 	    gdk_window_get_height(gtk_widget_get_window(area)));
-#if 0
-    drawCube(500, 500);
-#else
+#endif
+    
     drawCube(gdk_window_get_width(gtk_widget_get_window(area)),
 	    gdk_window_get_height(gtk_widget_get_window(area)));
-#endif
     
     CHECK_GL_ERROR();
     
