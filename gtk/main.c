@@ -42,13 +42,15 @@ static const char *srcVertexShader =
 	"attribute vec2 tex0;\n"
 	"varying vec4 vsout_color0;\n"
 	"varying vec2 vsout_uv;\n"
+	"varying float vsout_shade;\n"
 	"uniform mat4 matPVW;\n"
+	"uniform mat4 matRot;\n"
 	"void main() {\n"
 	"  gl_Position = matPVW * position0;\n"
-	"  float lmb = clamp(dot(vec3(0.0, 0.5, 0.5), normal0), 0.0, 1.0);\n"
-	"  lmb = lmb * 0.5 + 0.5;\n"
+	"  vec4 norm = matRot * vec4(normal0.xyz, 0.0);\n"
+	"  vsout_shade = clamp(dot(normalize(vec3(1.0, 1.0, 1.0)), normalize(norm.xyz)), 0.0, 1.0);\n"
 	"  vsout_color0.rgb = color0;\n"
-	"  vsout_color0.a = clamp(lmb, 0.99, 1.0);\n"
+	"  vsout_color0.a = 1.0;\n"
 	"  vsout_uv = tex0;\n"
 	"}";
 
@@ -57,8 +59,9 @@ static const char *srcFragmentShader =
 	"uniform sampler2D tex;\n"
 	"varying vec4 vsout_color0;\n"
 	"varying vec2 vsout_uv;\n"
+	"varying float vsout_shade;\n"
 	"void main() {\n"
-	"  gl_FragColor = vsout_color0 * texture2D(tex, vsout_uv);\n"
+	"  gl_FragColor = vec4(vsout_color0.rgb * texture2D(tex, vsout_uv).rgb * vsout_shade, 1.0);\n"
 	"}";
 
 static const char *srcVertexShader_2 =
@@ -323,7 +326,7 @@ static struct {
     GLint locPos_2, locCol_2;
 } drawObj;
 
-static GLint locPVW, locTex;
+static GLint locPVW, locTex, locRot;
 static int texture = 0;
 
 static void CreateResource(void)
@@ -336,6 +339,7 @@ static void CreateResource(void)
 	drawObj.locTex = glGetAttribLocation(drawObj.shader, "tex0");
 	CHECK_GL_ERROR();
 	locPVW = glGetUniformLocation(drawObj.shader, "matPVW");
+	locRot = glGetUniformLocation(drawObj.shader, "matRot");
 	locTex = glGetUniformLocation(drawObj.shader, "tex");
 	CHECK_GL_ERROR();
 	
@@ -540,11 +544,13 @@ static void drawCube(int width, int height)
     m = mat4_mul(r2, m);
     m = mat4_mul(r3, m);
     m = mat4_mul(s1, m);
+    struct mat4 rot = m;
     m = mat4_mul(t1, m);
     m = mat4_mul(proj, m);
     
     CHECK_GL_ERROR();
     glUniformMatrix4fv(locPVW, 1, GL_TRUE, (float *) &m);
+    glUniformMatrix4fv(locRot, 1, GL_TRUE, (float *) &rot);
     glUniform1i(locTex, 0);
     glBindTexture(GL_TEXTURE_2D, texture);
     CHECK_GL_ERROR();
