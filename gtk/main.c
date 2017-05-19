@@ -5,8 +5,6 @@
 #include <string.h>
 #include <math.h>
 
-static GtkWidget *drawable;
-
 #define CHECK_GL_ERROR() check_gl_error(__FILE__, __LINE__)
 static void check_gl_error(const char *file, int lineno)
 {
@@ -598,7 +596,7 @@ static gboolean render(GtkWidget *area, GdkGLContext *context, gpointer user_dat
 
 static gboolean timeout_cb(gpointer user_data)
 {
-    gtk_gl_area_queue_render(GTK_GL_AREA(drawable));
+    gtk_gl_area_queue_render(GTK_GL_AREA(user_data));
     return G_SOURCE_CONTINUE;
 }
 
@@ -612,7 +610,7 @@ int main(int argc, char **argv)
     GtkWidget *toplevel = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_widget_show(toplevel);
     
-    drawable = gtk_gl_area_new();
+    GtkWidget *drawable = gtk_gl_area_new();
     gtk_gl_area_set_use_es(GTK_GL_AREA(drawable), TRUE);
     gtk_gl_area_set_required_version(GTK_GL_AREA(drawable), 2, 0);
     gtk_gl_area_set_has_alpha(GTK_GL_AREA(drawable), TRUE);
@@ -623,7 +621,7 @@ int main(int argc, char **argv)
     gtk_widget_set_size_request(drawable, 500, 500);
     gtk_container_add(GTK_CONTAINER(toplevel), drawable);
     
-    g_timeout_add(17, timeout_cb, NULL);
+    g_timeout_add(17, timeout_cb, drawable);
     
     gtk_main();
     
